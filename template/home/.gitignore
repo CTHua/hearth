@@ -1,0 +1,26 @@
+# hearth:begin
+# Managed by hearth; this block may be rewritten by a later hearth version.
+# Product repos are cloned here by `hearth clone` and managed separately.
+/products/
+# Personal settings such as the ssh/https choice.
+/hearth.local.toml
+# hearth:end
+
+# Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+*.keystore
+*.jks
+
+# Claude Code local settings
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Editor and OS files
+.DS_Store
+*.swp

@@ -1,0 +1,171 @@
+package cli
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/CTHua/hearth/internal/apperr"
+	"github.com/CTHua/hearth/internal/brand"
+	"github.com/CTHua/hearth/internal/checkout"
+	"github.com/CTHua/hearth/internal/clone"
+	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/giturl"
+	"github.com/CTHua/hearth/internal/gitx"
+	"github.com/CTHua/hearth/internal/scaffold"
+	"github.com/CTHua/hearth/internal/version"
+)
+
+// doctorReport tracks the worst result: setup problems exit 2, checkout
+// problems exit 1, warnings alone exit 0.
+type doctorReport struct {
+	s           streams
+	setupBad    bool
+	checkoutBad bool
+}
+
+func (r *doctorReport) ok(format string, args ...any) {
+	fmt.Fprintf(r.s.out, "ok: "+format+"\n", args...)
+}
+
+func (r *doctorReport) warn(format string, args ...any) {
+	fmt.Fprintf(r.s.out, "warning: "+format+"\n", args...)
+}
+
+func (r *doctorReport) setup(err error) {
+	r.setupBad = true
+	var list apperr.List
+	if errors.As(err, &list) {
+		for _, e := range list {
+			apperr.Print(r.s.err, e)
+		}
+		return
+	}
+	var single *apperr.Error
+	if errors.As(err, &single) {
+		apperr.Print(r.s.err, single)
+		return
+	}
+	apperr.Print(r.s.err, apperr.New(apperr.Env, "%v", err))
+}
+
+func (r *doctorReport) checkoutFailed(e *apperr.Error) {
+	r.checkoutBad = true
+	apperr.Print(r.s.err, e)
+}
+
+func (r *doctorReport) exit() error {
+	if r.setupBad {
+		return apperr.Exit(apperr.ExitUsage)
+	}
+	if r.checkoutBad {
+		return apperr.Exit(apperr.ExitFailed)
+	}
+	return nil
+}
+
+// runDoctor only reads: it never connects to a remote or writes a file.
+func runDoctor(ctx context.Context, s streams, g globals, args []string) error {
+	fs := newFlagSet("doctor")
+	positional, help, err := parseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		fmt.Fprintf(s.out, "usage: %s doctor\n", brand.Name)
+		return nil
+	}
+	if len(positional) > 0 {
+		return apperr.New(apperr.Usage, "doctor takes no arguments")
+	}
+	report := &doctorReport{s: s}
+	git := checkGit(ctx, report)
+	report.ok("%s %s", brand.Name, version.Current())
+	home := checkConfig(report, g)
+	if home == nil {
+		return report.exit()
+	}
+	checkMarkers(report, home.Root)
+	if home.Personal.Protocol == "" {
+		report.warn("protocol is not set in %s; it is detected on the first `%s clone`, or set it with `%s config protocol <ssh|https>`",
+			brand.LocalFile, brand.Name, brand.Name)
+	} else {
+		report.ok("protocol %s", home.Personal.Protocol)
+	}
+	if git == nil {
+		report.warn("checkouts not checked because git is missing")
+		return report.exit()
+	}
+	if err := checkRepos(ctx, report, git, home); err != nil {
+		return err
+	}
+	return report.exit()
+}
+
+func checkGit(ctx context.Context, report *doctorReport) *gitx.Git {
+	git, err := gitx.New(ctx)
+	if err != nil {
+		report.setup(err)
+		return nil
+	}
+	out, err := git.Run(ctx, "", "--version")
+	if err != nil {
+		report.setup(apperr.New(apperr.Env, "git --version failed: %v", err))
+		return nil
+	}
+	report.ok("%s", strings.TrimSpace(out))
+	return git
+}
+
+func checkConfig(report *doctorReport, g globals) *config.Home {
+	home, err := loadHome(report.s, g)
+	if err != nil {
+		report.setup(err)
+		return nil
+	}
+	personal := brand.LocalFile + " not present"
+	if home.Personal.SchemaVersion != 0 {
+		personal = brand.LocalFile
+	}
+	report.ok("%s (%d repos), %s", brand.TeamFile, len(home.Team.Repos), personal)
+	return home
+}
+
+func checkMarkers(report *doctorReport, root string) {
+	problems := scaffold.CheckMarkers(root)
+	if len(problems) > 0 {
+		report.setup(problems)
+		return
+	}
+	report.ok("marked sections in AGENTS.md and .gitignore")
+}
+
+func checkRepos(ctx context.Context, report *doctorReport, git *gitx.Git, home *config.Home) error {
+	targets, err := cloneTargets(home.Team.Repos, home.Personal.Protocol)
+	if err != nil {
+		report.setup(err)
+		return nil
+	}
+	for _, t := range targets {
+		status, err := checkout.Inspect(ctx, git, home.Root, t.Repo.Path, t.URL)
+		if err != nil {
+			return err
+		}
+		switch status.State {
+		case checkout.OK:
+			report.ok("%s at %s", t.Repo.Name, t.Repo.Path)
+		case checkout.Missing:
+			report.warn("%s is not cloned at %s; run `%s clone %s`", t.Repo.Name, t.Repo.Path, brand.Name, t.Repo.Name)
+		case checkout.RemoteMismatch:
+			message := clone.MismatchMessage(t, status)
+			if status.HasOrigin && giturl.OnlyProtocolDiffers(status.Origin, t.URL) {
+				message += fmt.Sprintf("; only the protocol differs, run `%s repo fix-remote %s`", brand.Name, t.Repo.Name)
+			}
+			report.checkoutFailed(apperr.ForRepo(apperr.RemoteMismatch, t.Repo.Name, "%s", message))
+		default:
+			report.checkoutFailed(apperr.ForRepo(apperr.PathConflict, t.Repo.Name, "%s", status.Detail))
+		}
+	}
+	return nil
+}

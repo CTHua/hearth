@@ -1,0 +1,18 @@
+{
+  "roles": [
+    {
+      "role": "main",
+      "provider": "anthropic",
+      "alias": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "medium"
+    },
+    {
+      "role": "subagent",
+      "provider": "anthropic",
+      "alias": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium"
+    }
+  ]
+}
