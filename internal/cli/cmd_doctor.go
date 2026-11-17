@@ -14,6 +14,7 @@ import (
 	"github.com/CTHua/hearth/internal/giturl"
 	"github.com/CTHua/hearth/internal/gitx"
 	"github.com/CTHua/hearth/internal/scaffold"
+	"github.com/CTHua/hearth/internal/skill"
 	"github.com/CTHua/hearth/internal/version"
 )
 
@@ -100,7 +101,41 @@ func runDoctor(ctx context.Context, s streams, g globals, args []string) error {
 	if err := checkRepos(ctx, report, git, home); err != nil {
 		return err
 	}
+	if err := checkSkills(ctx, report, git, home); err != nil {
+		return err
+	}
 	return report.exit()
+}
+
+// checkSkills reports only what the personal file asks for; disabled
+// skills are not mentioned. A missing agent CLI is only a warning, since CI
+// and sandboxes often have none.
+func checkSkills(ctx context.Context, report *doctorReport, git *gitx.Git, home *config.Home) error {
+	cat, err := skill.Discover(home)
+	if err != nil {
+		report.setup(err)
+		return nil
+	}
+	for _, agent := range skill.MissingAgents(home.Personal.Agents) {
+		report.warn("[%s] %s: %s not found in PATH; %s does not install agents", apperr.AgentMissing, agent, agent, brand.Name)
+	}
+	rows, err := skill.Inspect(ctx, git, home, cat)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		switch {
+		case row.State == skill.Disabled:
+			continue
+		case row.State == skill.OK:
+			report.ok("skill %s (%s)", row.Name, row.Source)
+		case row.State.Warning():
+			report.warn("[%s] %s: %s", row.State, row.Name, row.Detail)
+		default:
+			report.checkoutFailed(apperr.ForRepo(apperr.Category(row.State), row.Name, "%s", row.Detail))
+		}
+	}
+	return nil
 }
 
 func checkGit(ctx context.Context, report *doctorReport) *gitx.Git {

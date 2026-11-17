@@ -29,4 +29,12 @@ const (
 	// CloneTempPrefix prefixes the sibling directory a clone is made in before
 	// it is renamed into place.
 	CloneTempPrefix = ".hearth-"
+
+	// StateDir is the gitignored home-repo directory for files this tool
+	// generates, such as the built-in skill.
+	StateDir = ".hearth"
+
+	// BuiltinSkill is the name of the skill embedded in the binary; no other
+	// skill may use it.
+	BuiltinSkill = Name
 )

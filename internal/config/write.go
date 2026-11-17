@@ -23,9 +23,15 @@ type reposPart struct {
 	Repos []Repo `toml:"repos,omitempty"`
 }
 
+type skillsPart struct {
+	Skills []Skill `toml:"skills,omitempty"`
+}
+
 type personalPart struct {
-	SchemaVersion int64  `toml:"schema_version"`
-	Protocol      string `toml:"protocol,omitempty"`
+	SchemaVersion int64    `toml:"schema_version"`
+	Protocol      string   `toml:"protocol,omitempty"`
+	Agents        []string `toml:"agents,omitempty"`
+	Skills        []string `toml:"skills,omitempty"`
 }
 
 // WriteTeam replaces the whole team file under root. Only the fixed header
@@ -44,19 +50,32 @@ func WriteTeam(root string, t Team) error {
 			return apperr.New(apperr.Config, "cannot encode %s: %v", brand.TeamFile, err)
 		}
 	}
-	if len(t.Repos) > 0 {
+	// Repos come before skills, each in the order they were added.
+	tables := []struct {
+		present bool
+		part    any
+	}{
+		{len(t.Repos) > 0, reposPart{Repos: t.Repos}},
+		{len(t.Skills) > 0, skillsPart{Skills: t.Skills}},
+	}
+	for _, table := range tables {
+		if !table.present {
+			continue
+		}
 		buf.WriteString("\n")
-		if err := encode(&buf, reposPart{Repos: t.Repos}); err != nil {
+		if err := encode(&buf, table.part); err != nil {
 			return apperr.New(apperr.Config, "cannot encode %s: %v", brand.TeamFile, err)
 		}
 	}
 	return writeFile(filepath.Join(root, brand.TeamFile), buf.Bytes())
 }
 
-// WritePersonal replaces the personal file under root.
+// WritePersonal replaces the personal file under root with every key of p,
+// so a command that changes one key keeps the others.
 func WritePersonal(root string, p Personal) error {
 	var buf bytes.Buffer
-	if err := encode(&buf, personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol}); err != nil {
+	part := personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents, Skills: p.Skills}
+	if err := encode(&buf, part); err != nil {
 		return apperr.New(apperr.Config, "cannot encode %s: %v", brand.LocalFile, err)
 	}
 	return writeFile(filepath.Join(root, brand.LocalFile), buf.Bytes())

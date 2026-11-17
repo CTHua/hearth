@@ -2,8 +2,14 @@
 # Managed by hearth; this block may be rewritten by a later hearth version.
 # Product repos are cloned here by `hearth clone` and managed separately.
 /products/
-# Personal settings such as the ssh/https choice.
+# Personal settings such as the ssh/https choice and the chosen skills.
 /hearth.local.toml
+# Written by `hearth skill sync`: skill checkouts, the built-in skill and
+# each agent's links.
+/vendor/
+/.hearth/
+/.claude/skills/
+/.agents/skills/
 # hearth:end
 
 # Credentials

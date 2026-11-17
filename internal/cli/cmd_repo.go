@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -104,42 +105,59 @@ func newRepo(rawURL string, given map[string]bool, name string, path string, bra
 	return config.Repo{Name: name, URL: rawURL, Path: path, Branch: branch}, nil
 }
 
+// repoFlags are the repo add flags that set a field of the same name.
+var repoFlags = []string{config.FieldName, config.FieldPath, config.FieldBranch}
+
 // addProblems turns validation problems of the new entry into one usage
 // error that names the flag to fix.
 func addProblems(err error) error {
+	return entryProblems("add repo", err, repoFlags)
+}
+
+// entryProblems turns validation problems of a new or changed team-file
+// entry into one usage error; fields in flagged get a hint naming the flag.
+func entryProblems(action string, err error, flagged []string) error {
 	var problems config.FieldErrors
 	if !errors.As(err, &problems) {
 		return err
 	}
 	parts := make([]string, 0, len(problems))
 	for _, problem := range problems {
-		parts = append(parts, fmt.Sprintf("%s %s%s", problem.Field, problem.Message, flagHint(problem.Field)))
+		parts = append(parts, fmt.Sprintf("%s %s%s", problem.Field, problem.Message, flagHint(problem.Field, flagged)))
 	}
-	return apperr.New(apperr.Usage, "cannot add repo: %s; %s is unchanged", strings.Join(parts, "; "), brand.TeamFile)
+	return apperr.New(apperr.Usage, "cannot %s: %s; %s is unchanged", action, strings.Join(parts, "; "), brand.TeamFile)
 }
 
-func flagHint(field string) string {
-	switch field {
-	case config.FieldName, config.FieldPath, config.FieldBranch:
+func flagHint(field string, flagged []string) string {
+	if slices.Contains(flagged, field) {
 		return fmt.Sprintf(" (choose another with --%s)", field)
 	}
 	return ""
 }
 
-// remoteDefaultBranch asks the remote for its HEAD branch, using the URL the
-// user will clone with; that needs a protocol, which may first be detected.
-func remoteDefaultBranch(ctx context.Context, s streams, home *config.Home, rawURL string) (string, error) {
+// remoteURL returns git and the URL the user will clone rawURL with; that
+// needs a protocol, which may first be detected.
+func remoteURL(ctx context.Context, s streams, home *config.Home, rawURL string) (*gitx.Git, string, error) {
 	git, err := gitx.New(ctx)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	protocol, err := ensureProtocol(ctx, s, home, git, []string{rawURL})
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	url, err := giturl.Expected(rawURL, protocol)
 	if err != nil {
-		return "", apperr.New(apperr.Usage, "url %q: %v", rawURL, err)
+		return nil, "", apperr.New(apperr.Usage, "url %q: %v", rawURL, err)
+	}
+	return git, url, nil
+}
+
+// remoteDefaultBranch asks the remote for its HEAD branch.
+func remoteDefaultBranch(ctx context.Context, s streams, home *config.Home, rawURL string) (string, error) {
+	git, url, err := remoteURL(ctx, s, home, rawURL)
+	if err != nil {
+		return "", err
 	}
 	branch, found, err := git.DefaultBranch(ctx, url)
 	if err != nil {

@@ -40,7 +40,7 @@ type Status struct {
 // writes. The error is set only when the run was interrupted or git could
 // not be started.
 func Inspect(ctx context.Context, g *gitx.Git, root string, relPath string, expectedURL string) (Status, error) {
-	if detail := pathChainProblem(root, relPath); detail != "" {
+	if detail := PathProblem(root, relPath); detail != "" {
 		return Status{State: PathConflict, Detail: detail}, nil
 	}
 	target := filepath.Join(root, filepath.FromSlash(relPath))
@@ -54,15 +54,20 @@ func Inspect(ctx context.Context, g *gitx.Git, root string, relPath string, expe
 	if !info.IsDir() {
 		return Status{State: PathConflict, Detail: fmt.Sprintf("%s is not a directory", relPath)}, nil
 	}
-	if status, done, err := checkToplevel(ctx, g, target, relPath); done || err != nil {
-		return status, err
+	detail, err := RootProblem(ctx, g, target, relPath)
+	if err != nil {
+		return Status{}, err
+	}
+	if detail != "" {
+		return Status{State: PathConflict, Detail: detail}, nil
 	}
 	return checkOrigin(ctx, g, target, relPath, expectedURL)
 }
 
-// pathChainProblem rejects a symlink anywhere from products/ to the target,
-// and a parent that exists but is not a directory.
-func pathChainProblem(root string, relPath string) string {
+// PathProblem rejects a symlink anywhere on relPath below root, and a parent
+// that exists but is not a directory. relPath uses "/" separators. It is
+// empty when nothing is wrong, including when part of the path is missing.
+func PathProblem(root string, relPath string) string {
 	segments := strings.Split(relPath, pathSeparator)
 	current := root
 	for depth, segment := range segments {
@@ -86,28 +91,30 @@ func pathChainProblem(root string, relPath string) string {
 	return ""
 }
 
-func checkToplevel(ctx context.Context, g *gitx.Git, target string, relPath string) (Status, bool, error) {
+// RootProblem explains why the existing directory target is not the root of
+// its own git checkout; it is empty when it is. relPath names target in the
+// message. The error is set only when the run was interrupted or git could
+// not be started.
+func RootProblem(ctx context.Context, g *gitx.Git, target string, relPath string) (string, error) {
 	out, err := g.Run(ctx, "", "-C", target, "rev-parse", "--show-toplevel")
 	var runErr *gitx.RunError
 	if errors.As(err, &runErr) {
 		// git's own reason matters: "not a git repository" and "dubious
 		// ownership" need different fixes.
-		detail := fmt.Sprintf("%s is not a git checkout (git: %s)", relPath, gitx.LastLine(runErr.Stderr))
-		return Status{State: PathConflict, Detail: detail}, true, nil
+		return fmt.Sprintf("%s is not a git checkout (git: %s)", relPath, gitx.LastLine(runErr.Stderr)), nil
 	}
 	if err != nil {
-		return Status{}, true, err
+		return "", err
 	}
 	toplevel := strings.TrimRight(out, "\n")
 	same, err := sameFile(toplevel, target)
 	if err != nil {
-		return Status{State: PathConflict, Detail: fmt.Sprintf("cannot compare %s with %s: %v", relPath, toplevel, err)}, true, nil
+		return fmt.Sprintf("cannot compare %s with %s: %v", relPath, toplevel, err), nil
 	}
 	if !same {
-		detail := fmt.Sprintf("%s is not a checkout root; git resolves it to %s", relPath, toplevel)
-		return Status{State: PathConflict, Detail: detail}, true, nil
+		return fmt.Sprintf("%s is not a checkout root; git resolves it to %s", relPath, toplevel), nil
 	}
-	return Status{}, false, nil
+	return "", nil
 }
 
 func sameFile(a string, b string) (bool, error) {

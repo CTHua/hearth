@@ -17,8 +17,8 @@ import (
 
 const usageText = `usage: %[1]s [-C <dir>] <command> [<args>]
 
-Manage a home repo: the team's list of product repos in %[2]s and their
-checkouts under products/.
+Manage a home repo: the team's list of product repos and skills in %[2]s,
+the product checkouts under products/, and the skills each person chooses.
 
 commands:
   init <dir>                 create a new home repo in a missing or empty <dir>
@@ -30,9 +30,23 @@ commands:
   repo fix-remote [<name>...]
                              point origin at the expected URL when only the
                              protocol differs
+  skill add <url> [--name <name>] [--commit <sha>] [--subdir <dir>]
+                             pin an external skill in %[2]s; without
+                             --commit, the remote's HEAD commit
+  skill remove <name>        remove an external skill from %[2]s
+  skill update <name> [--commit <sha>]
+                             move a skill's pin in %[2]s
+  skill enable <name>...     choose skills in %[3]s
+  skill disable <name>...    stop using skills, including removed ones
+  skill sync                 install the chosen skills into vendor/skills/
+                             and link them for each chosen agent
+  skill list                 show every skill and its state
   config protocol [ssh|https]
                              show or set your protocol in %[3]s
-  doctor                     check git, both config files and every checkout
+  config agents [claude,codex|none]
+                             show or set your agents in %[3]s
+  doctor                     check git, both config files, every checkout
+                             and every chosen skill
   version                    print the version
   help                       show this help
 
@@ -40,8 +54,8 @@ options:
   -C <dir>  run as if started in <dir>; the home repo is the first directory
             at or above it that holds %[2]s
 
-exit codes: 0 ok, 1 some repo failed, 2 config/usage/env/version error,
-130 interrupted
+exit codes: 0 ok, 1 some repo or skill failed, 2 config/usage/env/version
+error, 130 interrupted
 `
 
 // streams bundles what a command writes to.
@@ -88,6 +102,7 @@ func dispatch(ctx context.Context, s streams, args []string) error {
 		"init":    runInit,
 		"clone":   runClone,
 		"repo":    runRepo,
+		"skill":   runSkill,
 		"config":  runConfig,
 		"doctor":  runDoctor,
 		"version": runVersion,

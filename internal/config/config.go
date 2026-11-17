@@ -49,13 +49,18 @@ type Team struct {
 	SchemaVersion int64
 	MinVersion    string
 	Repos         []Repo
+	Skills        []Skill
 }
 
-// Personal is the content of the personal file. Protocol is empty when the
-// file is missing or does not set it.
+// Personal is the content of the personal file. Protocol is empty and the
+// lists are nil when the file is missing or does not set them.
 type Personal struct {
 	SchemaVersion int64
 	Protocol      string
+	Agents        []string
+	// Skills are the chosen skill names. A name may no longer exist in any
+	// source; callers treat such a stale choice as not chosen.
+	Skills []string
 }
 
 // Home is a loaded home repo.
@@ -128,10 +133,7 @@ func (t Team) Without(name string) (Team, bool) {
 // WithProtocol returns p with protocol set, starting a new personal file at
 // the current schema when none was loaded.
 func (p Personal) WithProtocol(protocol string) Personal {
-	next := p
-	if next.SchemaVersion == 0 {
-		next.SchemaVersion = SchemaVersion
-	}
+	next := p.started()
 	next.Protocol = protocol
 	return next
 }

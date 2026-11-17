@@ -19,22 +19,28 @@ func TestMain(m *testing.M) {
 	gittest.Main(m)
 }
 
-// Strings that would point a new home repo at the Python scripts or the
-// external skill installer, which this template no longer ships.
+// Strings that would point a new home repo at the Python scripts, which this
+// template no longer ships. vendor/skills is allowed since P2: it is where
+// `skill sync` installs external skills, so the docs name it.
 var forbiddenMentions = []string{
 	"scripts/bootstrap", "scripts/setup", "repos.json", "repos.example.json", "skills.json",
-	"config.toml", "config.example.toml", "vendor/skills", "tests/", "python3",
+	"config.toml", "config.example.toml", "tests/", "python3",
 }
 
-// Agent auto-load settings belong to later phases.
-var forbiddenPaths = []string{".mcp.json", ".codex/config.toml", ".claude/skills", ".agents/skills", "vendor/skills"}
+// init never writes agent auto-load settings or the directories that only
+// `skill sync` creates.
+var forbiddenPaths = []string{".mcp.json", ".codex/config.toml", ".claude/skills", ".agents/skills", "vendor/skills", "vendor", brand.StateDir}
 
 var (
 	machinePathRE = regexp.MustCompile(`(?:/Users|/home)/[A-Za-z0-9]|[A-Za-z]:\\Users\\`)
 	githubRepoRE  = regexp.MustCompile(`(?:^|[^\w.-])github\.com[:/]([A-Za-z0-9][\w.-]*/[\w.-]+)`)
 	emailRE       = regexp.MustCompile(`([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)`)
 	ownRepo       = "CTHua/" + brand.Name
-	allowedEmail  = []string{".invalid", "example.com"}
+	// An address domain is allowed when it equals allowedEmailDomain or ends
+	// with one of allowedEmailSuffixes; a plain suffix test would let
+	// a@notexample.com through.
+	allowedEmailDomain   = "example.com"
+	allowedEmailSuffixes = []string{".example.com", ".invalid"}
 )
 
 // sshRemoteUser is the user part of git@host:path remotes, not an address.
@@ -240,6 +246,34 @@ func TestGitignoreBlockIgnoresProductsAndPersonalFile(t *testing.T) {
 	}
 }
 
+func TestGitignoreBlockIgnoresSkillOutputs(t *testing.T) {
+	dir := initHome(t)
+	block := markerBlock(t, ".gitignore", readFile(t, filepath.Join(dir, ".gitignore")), brand.GitignoreBegin, brand.GitignoreEnd)
+	for _, want := range []string{"/vendor/", "/" + brand.StateDir + "/", "/.claude/skills/", "/.agents/skills/"} {
+		if !strings.Contains(strings.Join(block, "\n")+"\n", want+"\n") {
+			t.Errorf("block lacks %q", want)
+		}
+	}
+	paths := []string{"vendor/skills/x/SKILL.md", brand.StateDir + "/skills/x/SKILL.md", ".claude/skills/x", ".agents/skills/x"}
+	for _, path := range paths {
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ignored := gittest.Git(t, dir, append([]string{"check-ignore"}, paths...)...)
+	if strings.Count(ignored, "\n") != len(paths) {
+		t.Errorf("check-ignore: %q", ignored)
+	}
+	shared := ".claude/settings.json"
+	if got := strings.TrimSpace(gittest.Git(t, dir, "ls-files", "--others", "--exclude-standard", shared)); got != shared {
+		t.Errorf("%s should stay trackable, ls-files says %q", shared, got)
+	}
+}
+
 func TestGeneratedRepoDropsPythonAndSkillInstaller(t *testing.T) {
 	dir := initHome(t)
 	for path, text := range generatedFiles(t, dir) {
@@ -291,9 +325,10 @@ func audit(text string) []string {
 		if match[1] == sshRemoteUser {
 			continue
 		}
-		allowed := false
-		for _, suffix := range allowedEmail {
-			allowed = allowed || strings.HasSuffix(match[2], suffix)
+		domain := strings.ToLower(match[2])
+		allowed := domain == allowedEmailDomain
+		for _, suffix := range allowedEmailSuffixes {
+			allowed = allowed || strings.HasSuffix(domain, suffix)
 		}
 		if !allowed {
 			findings = append(findings, "email "+match[0])
@@ -310,13 +345,15 @@ func TestAuditCatchesForbiddenDetails(t *testing.T) {
 		"mail platform-team@acme-team.io",
 		"mail someone@example.org",
 		"mail someone@example.net",
+		"mail a@notexample.com",
+		"mail a@example.com.evil.io",
 	}
 	for _, sample := range samples {
 		if len(audit(sample)) == 0 {
 			t.Errorf("audit missed %q", sample)
 		}
 	}
-	allowed := "go install github.com/" + ownRepo + "/cmd/x@latest; git@git.example.invalid:acme/app.git; a@example.com; docs.github.com/en"
+	allowed := "go install github.com/" + ownRepo + "/cmd/x@latest; git@git.example.invalid:acme/app.git; a@example.com; b@team.example.com; c@host.invalid; docs.github.com/en"
 	if findings := audit(allowed); len(findings) != 0 {
 		t.Errorf("audit flagged allowed text: %v", findings)
 	}

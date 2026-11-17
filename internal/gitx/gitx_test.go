@@ -30,6 +30,20 @@ func TestDefaultBranchReadsRemoteHead(t *testing.T) {
 	}
 }
 
+func TestRemoteHeadReadsHeadCommit(t *testing.T) {
+	remote := gittest.BareRemote(t, "trunk")
+	gittest.Redirect(t, remoteURL, remote)
+	g, err := gitx.New(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, found, err := g.RemoteHead(context.Background(), remoteURL)
+	want := strings.TrimSpace(gittest.Git(t, remote, "rev-parse", "HEAD"))
+	if err != nil || !found || commit != want {
+		t.Fatalf("RemoteHead = %q, %v, %v; want %s", commit, found, err, want)
+	}
+}
+
 func TestDefaultBranchUnreachableIsRunError(t *testing.T) {
 	gittest.Redirect(t, remoteURL, filepath.Join(t.TempDir(), "missing.git"))
 	g, err := gitx.New(context.Background())

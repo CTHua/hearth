@@ -47,6 +47,14 @@ func TestReportExitCodes(t *testing.T) {
 	}
 }
 
+func TestWarnUsesTheErrorFormat(t *testing.T) {
+	var buf bytes.Buffer
+	apperr.Warn(&buf, apperr.ForRepo(apperr.AgentMissing, "codex", "not found"))
+	if got, want := buf.String(), "warning [agent-missing] codex: not found\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestExitCodesMatchPythonVersion(t *testing.T) {
 	codes := []int{apperr.ExitOK, apperr.ExitFailed, apperr.ExitUsage, apperr.ExitInterrupted}
 	want := []int{0, 1, 2, 130}

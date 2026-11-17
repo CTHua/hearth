@@ -17,6 +17,8 @@ const (
 	keySchemaVersion = "schema_version"
 	keyProtocol      = "protocol"
 	keyRepos         = "repos"
+	keySkills        = "skills"
+	keyAgents        = "agents"
 )
 
 // document is a decoded file kept as generic values, so keys are checked by
@@ -101,98 +103,166 @@ func unknownKeys(doc document, allowed ...string) apperr.List {
 }
 
 func parseTeam(doc document) (Team, apperr.List) {
-	problems := unknownKeys(doc, keySchemaVersion, brand.MinVersionKey, keyRepos)
-	entries, err := repoEntries(doc)
-	if err != nil {
-		return Team{}, append(problems, err)
-	}
-	repos := make([]Repo, len(entries))
-	var reported FieldErrors
-	for i, entry := range entries {
-		repo, entryProblems := decodeEntry(i, entry)
-		repos[i] = repo
-		reported = append(reported, entryProblems...)
-	}
-	all := append(slices.Clone(reported), checkRepos(repos, reported, nil)...)
-	for _, problem := range all {
-		problems = append(problems, configError(doc.file, "%s: %s", problem.location(), problem.Message))
-	}
+	problems := unknownKeys(doc, keySchemaVersion, brand.MinVersionKey, keyRepos, keySkills)
 	team := Team{
 		SchemaVersion: doc.values[keySchemaVersion].(int64),
 		MinVersion:    doc.values[brand.MinVersionKey].(string),
-		Repos:         repos,
+	}
+	repoValues, repoProblems := decodeTable(doc, keyRepos, requiredFields)
+	problems = append(problems, repoProblems...)
+	if repoValues != nil {
+		team.Repos = make([]Repo, len(repoValues.entries))
+		for i, v := range repoValues.entries {
+			team.Repos[i] = Repo{Name: v[FieldName], URL: v[FieldURL], Path: v[FieldPath], Branch: v[FieldBranch]}
+		}
+		problems = append(problems, located(doc, repoValues.reported, checkRepos(team.Repos, repoValues.reported, nil))...)
+	}
+	skillValues, skillProblems := decodeTable(doc, keySkills, skillFields)
+	problems = append(problems, skillProblems...)
+	if skillValues != nil {
+		team.Skills = make([]Skill, len(skillValues.entries))
+		for i, v := range skillValues.entries {
+			team.Skills[i] = Skill{Name: v[FieldName], URL: v[FieldURL], Commit: v[FieldCommit], Subdir: v[FieldSubdir]}
+		}
+		problems = append(problems, located(doc, skillValues.reported, checkSkills(team.Skills, skillValues.reported, nil))...)
 	}
 	return team, problems
 }
 
-// repoEntries accepts [[repos]] tables and an inline `repos = [...]` array.
-func repoEntries(doc document) ([]map[string]any, *apperr.Error) {
-	raw, present := doc.values[keyRepos]
+// located turns decoding and validation problems into config errors that
+// name the file and the field.
+func located(doc document, reported FieldErrors, checked FieldErrors) apperr.List {
+	var problems apperr.List
+	for _, problem := range append(slices.Clone(reported), checked...) {
+		problems = append(problems, configError(doc.file, "%s: %s", problem.location(), problem.Message))
+	}
+	return problems
+}
+
+// tableValues is an array of tables decoded to string fields, with the
+// problems found while decoding it.
+type tableValues struct {
+	entries  []map[string]string
+	reported FieldErrors
+}
+
+// decodeTable reads the array of tables called key. It is nil, with no
+// problems, when the key is absent, and nil with a problem when key is not
+// an array of tables.
+func decodeTable(doc document, key string, fields []string) (*tableValues, apperr.List) {
+	raw, present := doc.values[key]
 	if !present {
 		return nil, nil
 	}
+	tables, err := tableEntries(doc, key, raw)
+	if err != nil {
+		return nil, apperr.List{err}
+	}
+	values := &tableValues{entries: make([]map[string]string, len(tables))}
+	for i, table := range tables {
+		entry, entryProblems := decodeEntry(key, fields, i, table)
+		values.entries[i] = entry
+		values.reported = append(values.reported, entryProblems...)
+	}
+	return values, nil
+}
+
+// tableEntries accepts [[key]] tables and an inline `key = [...]` array.
+func tableEntries(doc document, key string, raw any) ([]map[string]any, *apperr.Error) {
 	if tables, ok := raw.([]map[string]any); ok {
 		return tables, nil
 	}
 	items, ok := raw.([]any)
 	if !ok {
-		return nil, configError(doc.file, "%s: must be an array of tables", keyRepos)
+		return nil, configError(doc.file, "%s: must be an array of tables", key)
 	}
 	tables := make([]map[string]any, 0, len(items))
 	for i, item := range items {
 		table, ok := item.(map[string]any)
 		if !ok {
-			return nil, configError(doc.file, "%s[%d]: must be a table", keyRepos, i)
+			return nil, configError(doc.file, "%s[%d]: must be a table", key, i)
 		}
 		tables = append(tables, table)
 	}
 	return tables, nil
 }
 
-func decodeEntry(index int, entry map[string]any) (Repo, FieldErrors) {
+func decodeEntry(table string, fields []string, index int, entry map[string]any) (map[string]string, FieldErrors) {
 	var problems FieldErrors
 	var extra []string
 	for key := range entry {
-		if !slices.Contains(requiredFields, key) {
+		if !slices.Contains(fields, key) {
 			extra = append(extra, key)
 		}
 	}
 	sort.Strings(extra)
 	for _, key := range extra {
-		problems = append(problems, FieldError{Index: index, Field: key, Message: "unknown key"})
+		problems = append(problems, FieldError{Table: table, Index: index, Field: key, Message: "unknown key"})
 	}
 	values := map[string]string{}
-	for _, field := range requiredFields {
+	for _, field := range fields {
 		value, present := entry[field]
 		if !present {
-			problems = append(problems, FieldError{Index: index, Field: field, Message: "missing"})
+			problems = append(problems, FieldError{Table: table, Index: index, Field: field, Message: "missing"})
 			continue
 		}
 		text, isString := value.(string)
 		if !isString {
-			problems = append(problems, FieldError{Index: index, Field: field, Message: "must be a string"})
+			problems = append(problems, FieldError{Table: table, Index: index, Field: field, Message: "must be a string"})
 			continue
 		}
 		values[field] = text
 	}
-	repo := Repo{Name: values[FieldName], URL: values[FieldURL], Path: values[FieldPath], Branch: values[FieldBranch]}
-	return repo, problems
+	return values, problems
 }
 
 func parsePersonal(doc document) (Personal, apperr.List) {
-	problems := unknownKeys(doc, keySchemaVersion, keyProtocol)
+	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keySkills)
 	personal := Personal{SchemaVersion: doc.values[keySchemaVersion].(int64)}
-	raw, present := doc.values[keyProtocol]
+	if raw, present := doc.values[keyProtocol]; present {
+		text, isString := raw.(string)
+		if isString && ValidProtocol(text) {
+			personal.Protocol = text
+		} else {
+			problems = append(problems, configError(doc.file, "%s: must be %q or %q, not %v", keyProtocol, giturl.SSH, giturl.HTTPS, describe(raw)))
+		}
+	}
+	agents, agentProblems := stringList(doc, keyAgents, agentProblem)
+	personal.Agents = agents
+	problems = append(problems, agentProblems...)
+	skills, skillProblems := stringList(doc, keySkills, chosenSkillProblem)
+	personal.Skills = skills
+	return personal, append(problems, skillProblems...)
+}
+
+// stringList reads the array of strings called key; an absent key is an
+// empty list.
+func stringList(doc document, key string, check func(string) string) ([]string, apperr.List) {
+	raw, present := doc.values[key]
 	if !present {
-		return personal, problems
+		return nil, nil
 	}
-	text, isString := raw.(string)
-	if !isString || !ValidProtocol(text) {
-		problem := configError(doc.file, "%s: must be %q or %q, not %v", keyProtocol, giturl.SSH, giturl.HTTPS, describe(raw))
-		return personal, append(problems, problem)
+	items, isArray := raw.([]any)
+	if !isArray {
+		return nil, apperr.List{configError(doc.file, "%s: must be an array of strings, not %v", key, describe(raw))}
 	}
-	personal.Protocol = text
-	return personal, problems
+	values := make([]string, 0, len(items))
+	var problems apperr.List
+	for i, item := range items {
+		text, isString := item.(string)
+		if !isString {
+			problems = append(problems, configError(doc.file, "%s[%d]: must be a string, not %v", key, i, describe(item)))
+			continue
+		}
+		values = append(values, text)
+	}
+	if len(problems) > 0 {
+		return nil, problems
+	}
+	for _, message := range listProblems(key, values, check) {
+		problems = append(problems, configError(doc.file, "%s", message))
+	}
+	return values, problems
 }
 
 func describe(value any) string {

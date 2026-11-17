@@ -21,6 +21,16 @@ const (
 	RemoteMismatch Category = "remote-mismatch"
 	CloneFailed    Category = "clone-failed"
 	Version        Category = "version"
+
+	// Skill categories, the same as the Python setup script.
+	AgentMissing       Category = "agent-missing"
+	NotInstalled       Category = "not-installed"
+	PinMismatch        Category = "pin-mismatch"
+	SkillInvalid       Category = "skill-invalid"
+	LinkMissing        Category = "link-missing"
+	LinkStale          Category = "link-stale"
+	LinkConflict       Category = "link-conflict"
+	SymlinkUnavailable Category = "symlink-unavailable"
 )
 
 // Exit codes, the same as the Python bootstrap script.
@@ -31,7 +41,11 @@ const (
 	ExitInterrupted = 130
 )
 
-const interruptedMessage = "interrupted"
+const (
+	interruptedMessage = "interrupted"
+	errorPrefix        = "error"
+	warningPrefix      = "warning"
+)
 
 // Error is one reportable problem. Name is set when it concerns a single repo.
 type Error struct {
@@ -52,9 +66,9 @@ func ForRepo(category Category, name string, format string, args ...any) *Error 
 
 func (e *Error) Error() string {
 	if e.Name == "" {
-		return fmt.Sprintf("error [%s] %s", e.Category, e.Message)
+		return fmt.Sprintf("%s [%s] %s", errorPrefix, e.Category, e.Message)
 	}
-	return fmt.Sprintf("error [%s] %s: %s", e.Category, e.Name, e.Message)
+	return fmt.Sprintf("%s [%s] %s: %s", errorPrefix, e.Category, e.Name, e.Message)
 }
 
 // List is several problems found together, such as every mistake in a config
@@ -87,6 +101,12 @@ func Exit(code int) error {
 // Print writes e as one line, for failures that do not stop a batch.
 func Print(w io.Writer, e *Error) {
 	fmt.Fprintln(w, e.Error())
+}
+
+// Warn writes e as one warning line: the same format with "warning" in
+// place of "error", for problems that do not change the exit code.
+func Warn(w io.Writer, e *Error) {
+	fmt.Fprintln(w, warningPrefix+strings.TrimPrefix(e.Error(), errorPrefix))
 }
 
 // Report prints err to w in the shared format and returns the exit code.

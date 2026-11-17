@@ -122,6 +122,22 @@ func (g *Git) DefaultBranch(ctx context.Context, url string) (string, bool, erro
 	return "", false, nil
 }
 
+// RemoteHead asks the remote at url which commit its HEAD points to. ok is
+// false when the remote answered without a HEAD.
+func (g *Git) RemoteHead(ctx context.Context, url string) (string, bool, error) {
+	out, err := g.Run(ctx, "", "-c", NoExtTransport, "ls-remote", url, headRef)
+	if err != nil {
+		return "", false, err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		commit, ref, found := strings.Cut(line, "\t")
+		if found && ref == headRef {
+			return commit, true, nil
+		}
+	}
+	return "", false, nil
+}
+
 // LastLine is the last non-empty line of git's output, used to show git's own
 // reason in a one-line error.
 func LastLine(text string) string {

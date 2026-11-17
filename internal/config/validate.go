@@ -27,18 +27,20 @@ var (
 	branchRE       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
 )
 
-// FieldError is a problem with one field of the repo at Index.
+// FieldError is a problem with one field of the entry at Index of the array
+// of tables called Table ("repos" or "skills").
 type FieldError struct {
+	Table   string
 	Index   int
 	Field   string
 	Message string
 }
 
 func (e FieldError) location() string {
-	return fmt.Sprintf("repos[%d].%s", e.Index, e.Field)
+	return fmt.Sprintf("%s[%d].%s", e.Table, e.Index, e.Field)
 }
 
-// FieldErrors is every problem found in a repo list.
+// FieldErrors is every problem found in a repo or skill list.
 type FieldErrors []FieldError
 
 func (l FieldErrors) Error() string {
@@ -63,6 +65,12 @@ func valueProblem(field string, value string) string {
 		return branchProblem(value)
 	}
 	return ""
+}
+
+// NameProblem explains why name cannot be a repo or skill name; it is empty
+// when it can.
+func NameProblem(name string) string {
+	return fieldProblem(FieldName, name)
 }
 
 func segmentProblem(value string) string {
@@ -98,36 +106,64 @@ type fieldKey struct {
 	field string
 }
 
-// checkRepos validates every value, then names and paths across entries.
-// Fields in reported already have a problem from decoding and are not checked
-// again; their entries take no part in the cross-entry checks. Fields in
-// pending have no value yet: they are not checked, but their entries still
-// take part in the cross-entry checks.
-func checkRepos(repos []Repo, reported FieldErrors, pending map[fieldKey]bool) FieldErrors {
+// entryTable describes one array of tables for checkEntries.
+type entryTable struct {
+	name    string
+	fields  []string
+	value   func(index int, field string) string
+	problem func(field string, value string) string
+}
+
+// checkEntries validates every value of every entry of table. Fields in
+// reported already have a problem from decoding and are not checked again;
+// their entries are marked invalid so they take no part in cross-entry
+// checks. Fields in pending have no value yet: they are not checked, but
+// their entries stay valid.
+func checkEntries(table entryTable, count int, reported FieldErrors, pending map[fieldKey]bool) ([]bool, FieldErrors) {
 	var problems FieldErrors
-	valid := make([]bool, len(repos))
+	valid := make([]bool, count)
 	skip := map[fieldKey]bool{}
-	for i := range repos {
+	for i := range valid {
 		valid[i] = true
 	}
 	for _, e := range reported {
 		skip[fieldKey{index: e.Index, field: e.Field}] = true
 		valid[e.Index] = false
 	}
-	for i, repo := range repos {
-		for _, field := range requiredFields {
+	for i := 0; i < count; i++ {
+		for _, field := range table.fields {
 			key := fieldKey{index: i, field: field}
 			if skip[key] || pending[key] {
 				continue
 			}
-			message := fieldProblem(field, repo.field(field))
+			value := table.value(i, field)
+			message := "must be a non-empty string"
+			if value != "" {
+				message = table.problem(field, value)
+			}
 			if message != "" {
-				problems = append(problems, FieldError{Index: i, Field: field, Message: message})
+				problems = append(problems, FieldError{Table: table.name, Index: i, Field: field, Message: message})
 				valid[i] = false
 			}
 		}
 	}
-	problems = append(problems, duplicateNames(repos, valid)...)
+	return valid, problems
+}
+
+// checkRepos validates every value, then names and paths across entries.
+func checkRepos(repos []Repo, reported FieldErrors, pending map[fieldKey]bool) FieldErrors {
+	table := entryTable{
+		name:    keyRepos,
+		fields:  requiredFields,
+		value:   func(i int, field string) string { return repos[i].field(field) },
+		problem: valueProblem,
+	}
+	valid, problems := checkEntries(table, len(repos), reported, pending)
+	names := make([]string, len(repos))
+	for i, repo := range repos {
+		names[i] = repo.Name
+	}
+	problems = append(problems, duplicateNames(keyRepos, names, valid)...)
 	problems = append(problems, pathConflicts(repos, valid)...)
 	return problems
 }
@@ -139,18 +175,18 @@ func fieldProblem(field string, value string) string {
 	return valueProblem(field, value)
 }
 
-func duplicateNames(repos []Repo, valid []bool) FieldErrors {
+func duplicateNames(table string, names []string, valid []bool) FieldErrors {
 	var problems FieldErrors
 	seen := map[string]int{}
-	for i, repo := range repos {
+	for i, name := range names {
 		if !valid[i] {
 			continue
 		}
-		key := strings.ToLower(repo.Name)
+		key := strings.ToLower(name)
 		first, dup := seen[key]
 		if dup {
-			message := fmt.Sprintf("duplicate name %q (also repos[%d], names are compared case-insensitively)", repo.Name, first)
-			problems = append(problems, FieldError{Index: i, Field: FieldName, Message: message})
+			message := fmt.Sprintf("duplicate name %q (also %s[%d], names are compared case-insensitively)", name, table, first)
+			problems = append(problems, FieldError{Table: table, Index: i, Field: FieldName, Message: message})
 			continue
 		}
 		seen[key] = i
@@ -172,7 +208,7 @@ func pathConflicts(repos []Repo, valid []bool) FieldErrors {
 				continue
 			}
 			message := fmt.Sprintf("%s %q and repos[%d].path %q (paths are compared case-insensitively)", relation, repos[j].Path, i, repos[i].Path)
-			problems = append(problems, FieldError{Index: j, Field: FieldPath, Message: message})
+			problems = append(problems, FieldError{Table: keyRepos, Index: j, Field: FieldPath, Message: message})
 		}
 	}
 	return problems

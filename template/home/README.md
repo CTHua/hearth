@@ -29,8 +29,8 @@ hearth doctor                # 檢查 git、設定檔和每個 checkout
 
 | 檔案 | 誰改 | 版控 |
 | --- | --- | --- |
-| `hearth.toml` | 團隊，透過 `hearth repo add` / `hearth repo remove` 再開 PR | 進版控 |
-| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol` | 被 `.gitignore` 忽略 |
+| `hearth.toml` | 團隊，透過 `hearth repo add` / `remove`、`hearth skill add` / `remove` / `update` 再開 PR | 進版控 |
+| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol`、`hearth config agents`、`hearth skill enable` / `disable` | 被 `.gitignore` 忽略 |
 
 `hearth.toml` 的格式：
 
@@ -68,6 +68,51 @@ hearth repo remove web-app                                          # 只改 hea
 - 沒給 `--name` 時取 URL 最後一段、去掉 `.git`；沒給 `--path` 時是 `products/<name>`；沒給 `--branch` 時問遠端的預設分支。
 - 不合規則或跟既有項目衝突時 exit 2，`hearth.toml` 不變，訊息會提示用哪個旗標指定。
 - 改完記得 commit `hearth.toml` 並開 PR。
+
+## Skills
+
+```sh
+hearth skill add https://git.example.invalid/acme/skills.git --subdir pdf   # 團隊檔，釘在遠端 HEAD 當下的 commit
+hearth config agents claude,codex                                          # 個人檔；none 清空
+hearth skill enable pdf                                                    # 個人檔
+hearth skill sync                                                          # 安裝並建 link
+hearth skill list                                                          # 只讀，不連網
+```
+
+`hearth.toml` 的外部 skill：
+
+```toml
+[[skills]]
+name = "pdf"
+url = "https://git.example.invalid/acme/skills.git"
+commit = "0123456789abcdef0123456789abcdef01234567"
+subdir = "pdf"
+```
+
+| 欄位 | 規則 |
+| --- | --- |
+| `name` | 規則同 `[[repos]]` 的 `name`，不能是 `hearth`（不分大小寫），也不能跟 `skills/` 底下的團隊 skill 同名 |
+| `url` | 同 `[[repos]]` 的三種寫法，clone 時照 `protocol` 轉換 |
+| `commit` | 完整的 40 或 64 個小寫 hex，不能是分支或 tag |
+| `subdir` | `.` 或 repo 裡的相對路徑，不能有 `.`、`..`、`.git` 段；底下要有 `SKILL.md` |
+
+`hearth.local.toml` 的個人選擇：`agents = ["claude", "codex"]`、`skills = ["pdf"]`，不存在代表空的。
+
+- 沒給 `--commit` 時 `skill add`、`skill update` 用 `git ls-remote` 問遠端 `HEAD`；給了完整 SHA 時不連網。
+- `skill sync` 把外部 skill clone 到 `vendor/skills/<name>`、detached 在 pin，內建的 `hearth` skill 寫到 `.hearth/skills/hearth/`，再 symlink 到 `.claude/skills/`（`claude`）、`.agents/skills/`（`codex`）。已經在 pin 的不 clone、不 fetch。
+- `skill remove` 只改 `hearth.toml`：下次 `sync` 清掉 link，`vendor/skills/<name>` 要自己刪。
+- `doctor` 也檢查選到的 skill。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
+
+| 類別 | 意思 | 怎麼處理 |
+| --- | --- | --- |
+| `agent-missing` | 選了的 agent CLI 不在 PATH。只是警告，link 照樣建 | 安裝那個 agent，或 `hearth config agents` 拿掉它 |
+| `not-installed` | 選了但還沒裝 | `hearth skill sync` |
+| `pin-mismatch` | `vendor/skills/<name>` 不在 pin，而且有本機改動、ignored 檔、本機 commit 或不是 detached，所以沒換 | 自己確認內容，刪掉那個目錄再 `sync` |
+| `skill-invalid` | `subdir` 底下沒有 `SKILL.md`、解析後跑出 checkout，或名稱跟別的來源衝突 | 修 `hearth.toml` 或改團隊 skill 的目錄名 |
+| `link-missing`、`link-stale` | `hearth` 的 link 不見了或指錯 | `hearth skill sync` 會修 |
+| `link-conflict` | 那個位置有你自己的檔案或 link，`hearth` 不動它 | 自己移走再 `sync` |
+| `symlink-unavailable` | 這個檔案系統建不了 symlink；`hearth` 不改用複製 | 換一個支援 symlink 的位置 |
+| `unknown` | 你選著的 skill 已經被移除；當成沒選 | `hearth skill disable <name>` |
 
 ## ssh 或 https
 
@@ -132,6 +177,8 @@ hearth repo remove web-app                                          # 只改 hea
 - `products/` 本身，或 `path` 中間任何一層是 symlink 時，`hearth` 會拒絕，即使 symlink 指向的位置是安全的。
 - 路徑檢查和 clone 之間有時間差。`hearth` 是本機開發工具，不防同一台機器上同時有人惡意改動目錄。
 - 程序被 `kill` 終止時（Ctrl-C 不算），`products/` 底下可能留下 `.hearth-` 開頭的暫存目錄。它不會被當成 checkout，也不會被自動刪除，請手動刪除。
+- Claude Code 從 `products/<name>/` 啟動時讀不到 Home Repo 根目錄的 `.claude/skills/`；要用 skill 就從根目錄啟動。
+- Codex 的 workspace-write sandbox 下 `.agents/` 是唯讀，agent 自己跑 `hearth skill sync` 會失敗，請使用者自己跑。
 - `products/` 被 `.gitignore` 忽略，所以 Claude Code 建 worktree 時不會帶上 `products/`，`@` 選單也不會列出裡面的檔案。
 
 ## 目錄
@@ -143,7 +190,8 @@ hearth repo remove web-app                                          # 只改 hea
 | `hearth.toml` | 產品 repo 清單 |
 | `products/` | 產品 repo 的 checkout。由 `hearth clone` 建立，不在版控內 |
 | `memory/` | 團隊記憶：跨產品的決策和團隊習慣，不記系統規格，見 [`memory/README.md`](memory/README.md) |
-| `skills/` | 可重用的操作步驟和模板，見 [`skills/README.md`](skills/README.md) |
+| `skills/` | 團隊自己寫的 skill 和模板，見 [`skills/README.md`](skills/README.md) |
+| `vendor/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth skill sync` 產生的外部 skill、內建 skill 和 link，不在版控內 |
 | `agents/` | 派工給 agent 的 prompt 模板，以及記錄預設模型的 `models.json`，見 [`agents/README.md`](agents/README.md) |
 | `.claude/` | Claude Code 的共用設定（`settings.json`）和 subagent 定義（`agents/subagent.md`） |
 | `workflows/` | 開發、code review、跨 repo 變更的流程，見 [`workflows/README.md`](workflows/README.md) |
@@ -216,7 +264,7 @@ rg <pattern> products/<name>
 
 ### .gitignore 不是安全隔離
 
-`.gitignore` 忽略 `/products/`、`/hearth.local.toml`、常見的憑證檔和 Claude Code 的本機設定（`.claude/settings.local.json`、`CLAUDE.local.md`），只代表 Home Repo 不追蹤那些檔案。它不是 agent 的讀寫權限設定，也不是安全隔離機制：
+`.gitignore` 忽略 `/products/`、`/hearth.local.toml`、`hearth skill sync` 產生的目錄、常見的憑證檔和 Claude Code 的本機設定（`.claude/settings.local.json`、`CLAUDE.local.md`），只代表 Home Repo 不追蹤那些檔案。它不是 agent 的讀寫權限設定，也不是安全隔離機制：
 
 - agent 讀得到、也改得到 `products/` 裡的所有檔案，包含產品 repo 裡的憑證和本機設定。
 - 要限制 agent 能讀寫的範圍，請用你的 agent 工具自己的權限設定或 sandbox。
@@ -227,7 +275,8 @@ rg <pattern> products/<name>
 ### 這一版不包含
 
 - 安裝、登入或設定 agent 工具。
-- 把 `skills/`、`agents/` 接到任何工具的自動載入位置。`.claude/agents/subagent.md` 是另外寫的一個定義，不是 `agents/` 的連結。
+- 把 `agents/` 接到任何工具的自動載入位置。`.claude/agents/subagent.md` 是另外寫的一個定義，不是 `agents/` 的連結。skill 只有每個人選了、跑過 `hearth skill sync` 才會接到 `.claude/skills/`、`.agents/skills/`。
+- MCP 設定。
 - quality-gate 的選擇（要跑哪些 lint、型別檢查、測試門檻）。產品各自照自己 repo 的規範。
 - LICENSE。
 - Windows 支援。

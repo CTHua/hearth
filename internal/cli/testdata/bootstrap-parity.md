@@ -61,5 +61,5 @@ Go 測試的位置用 `套件/測試名` 表示，套件在 `internal/` 底下�
 | `test_28_missing_config_clones_urls_as_written_with_hint` | 刻意不同（9b） | 改成偵測並寫進個人檔：`cli/TestCloneDetectsProtocolWhenUnset`、`cli/TestCloneDetectionFailureClonesAndWritesNothing` |
 | `test_28_empty_repos_without_config_prints_nothing_else` | `cli/TestCloneEmptyListPrintsMessageOnly` | 不偵測、不寫個人檔；dev build 在 stderr 多一行 `min_hearth_version` 的警告 |
 | `test_28_existing_config_prints_no_hint` | `cli/TestCloneWithProtocolSetDoesNotDetect` | 9b |
-| `test_29_invalid_personal_config_is_config_error` | `cli/TestInvalidPersonalFileFailsEvenWithEmptyList`、`config/TestPersonalFileProtocolRules`、`config/TestUnknownKeysAreConfigErrorsWithLocation` | 9d：`[agents]`、`[skills]` 段落不存在，算未知 key |
+| `test_29_invalid_personal_config_is_config_error` | `cli/TestInvalidPersonalFileFailsEvenWithEmptyList`、`config/TestPersonalFileProtocolRules`、`config/TestUnknownKeysAreConfigErrorsWithLocation` | 9d：P1 時 `[agents]`、`[skills]` 段落算未知 key；P2 起 `agents`、`skills` 是字串陣列，寫成段落報「must be an array of strings」（`config/TestPersonalListRules`），一樣是 config 錯誤 |
 | `test_29_invalid_personal_config_fails_even_with_empty_repos` | `cli/TestInvalidPersonalFileFailsEvenWithEmptyList` | |
