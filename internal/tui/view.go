@@ -42,16 +42,20 @@ const (
 	staleSource  = "-"
 	notSet       = "not set"
 	tabGap       = "   "
-	teamGroup    = "│ team "
-	tabUnderline = "━"
-	ruleLine     = "─"
-	badgeMine    = "MINE"
-	badgeTeam    = "TEAM"
-	markAdded    = "+"
-	markModified = "~"
-	noMark       = " "
-	shortCommit  = 7
-	ellipsis     = "…"
+	narrowTabGap = "  "
+	// minSpread is the fewest spaces between the two sides of a line.
+	minSpread     = 1
+	mouseOffLabel = "mouse off"
+	teamGroup     = "│ team "
+	tabUnderline  = "━"
+	ruleLine      = "─"
+	badgeMine     = "MINE"
+	badgeTeam     = "TEAM"
+	markAdded     = "+"
+	markModified  = "~"
+	noMark        = " "
+	shortCommit   = 7
+	ellipsis      = "…"
 	// formWidth is the widest a form or the key sheet is drawn.
 	formWidth = 66
 	// formChrome is the border and padding around a form's lines;
@@ -72,13 +76,20 @@ const (
 func (m *Model) View() tea.View {
 	view := tea.NewView(m.render())
 	view.AltScreen = true
+	// All motion, not just clicks, so what is under the mouse can be marked.
+	view.MouseMode = tea.MouseModeAllMotion
+	if m.mouseOff {
+		view.MouseMode = tea.MouseModeNone
+	}
 	return view
 }
 
 // render lays out the screen so no line is wider than the terminal; the
 // body scrolls to keep the cursor visible. A form or the key sheet is drawn
-// over the screen, which loses its colors and dims.
+// over the screen, which loses its colors and dims. It records in m.layout
+// where it drew what a click can hit.
 func (m *Model) render() string {
+	m.layout = layout{}
 	if m.quitting {
 		return ""
 	}
@@ -102,16 +113,38 @@ func (m *Model) screen() []string {
 			top = append(top, pending, "")
 		}
 	}
-	footer := m.footer()
-	body, cursorLine := m.body()
+	footer, helpZones := m.footer()
+	b := m.body()
 	room := max(1, m.height-len(top)-len(footer))
-	start := max(0, cursorLine-room+1)
-	end := min(len(body), start+room)
-	lines := append(top, body[start:end]...)
+	start := max(0, b.cursorLine-room+1)
+	end := min(len(b.lines), start+room)
+	visible := slices.Clone(b.lines[start:end])
+	m.layout.list = area{x: 0, y: len(top), width: m.width, height: room}
+	for i, item := range b.items {
+		if item.line < start || item.line >= end {
+			continue
+		}
+		y := len(top) + item.line - start
+		if m.hovering && m.hover.y == y && i != b.cursor {
+			visible[item.line-start] = row(item.cells, item.widths, lookHovered, m.width)
+		}
+		m.layout.add(zone{area: lineArea(0, y, m.width), row: i})
+		// Mine's first column is the checkbox or radio; a click on it is
+		// space on that row.
+		if m.tab == tabMine {
+			m.layout.add(zone{area: lineArea(firstCellX(), y, lipgloss.Width(item.cells[0].text)), row: i, press: bindingPress(keys.Toggle)})
+		}
+	}
+	lines := append(top, visible...)
 	for len(lines) < m.height-len(footer) {
 		lines = append(lines, "")
 	}
 	lines = append(lines, footer...)
+	helpY := len(lines) - 1
+	for _, z := range helpZones {
+		z.area.y = helpY
+		m.layout.add(z)
+	}
 	clip := lipgloss.NewStyle().MaxWidth(m.width)
 	for i, line := range lines {
 		lines[i] = clip.Render(line)
@@ -143,38 +176,64 @@ func (m *Model) overlay(lines []string, box string) string {
 	background := dim.Render(plain(strings.Join(lines, lineSeparator)))
 	x := max(0, (m.width-lipgloss.Width(box))/2)
 	y := max(0, (m.height-lipgloss.Height(box))/2)
+	m.layout.box = area{x: x, y: y, width: lipgloss.Width(box), height: lipgloss.Height(box)}
 	canvas := lipgloss.NewCanvas(m.width, m.height)
 	canvas.Compose(lipgloss.NewCompositor(lipgloss.NewLayer(background), lipgloss.NewLayer(box).X(x).Y(y).Z(1)))
 	return canvas.Render()
 }
 
 // tabBar is the tab names with the team group marked, the file the tab
-// edits on the right, and an underline that marks the current tab.
+// edits on the right, and an underline that marks the current tab. The tab
+// under the mouse is underlined.
 func (m *Model) tabBar() []string {
-	top := gutter + accentBold.Render(brand.Name) + tabGap
+	badge := mineBadge.Render(fmt.Sprintf(" %s · %s ", badgeMine, brand.LocalFile))
+	if m.tab != tabMine {
+		badge = teamBadge.Render(fmt.Sprintf(" %s · %s ", badgeTeam, brand.TeamFile))
+	}
+	if m.mouseOff {
+		badge = warnText.Render(mouseOffLabel) + gutter + badge
+	}
+	right := badge + gutter
+	top, under, zones := m.tabs(tabGap)
+	// At 80 columns the Mine badge and mouse off leave no room for the
+	// usual gaps; the tabs move closer instead of the badge being cut.
+	if lipgloss.Width(top)+lipgloss.Width(right) >= m.width {
+		top, under, zones = m.tabs(narrowTabGap)
+	}
+	for _, z := range zones {
+		m.layout.add(z)
+	}
+	under += dim.Render(strings.Repeat(ruleLine, max(0, m.width-lipgloss.Width(under))))
+	return []string{spread(top, right, m.width), under}
+}
+
+// tabs draws the tab names gap apart, with the line under them and the
+// zone of each name.
+func (m *Model) tabs(gap string) (string, string, []zone) {
+	top := gutter + accentBold.Render(brand.Name) + gap
 	under := strings.Repeat(" ", lipgloss.Width(top))
+	zones := make([]zone, 0, tabCount)
 	for t := range tabCount {
 		if t == tabRepos {
 			top += dim.Render(teamGroup)
 			under += dim.Render(strings.Repeat(ruleLine, lipgloss.Width(teamGroup)))
 		}
 		name := tabNames[t]
+		place := lineArea(lipgloss.Width(top), 0, lipgloss.Width(name))
+		zones = append(zones, zone{area: place, row: noRow, press: tabPress(t)})
+		style := muted
+		line := dim.Render(strings.Repeat(ruleLine, lipgloss.Width(name)))
 		if t == m.tab {
-			top += bold.Render(name)
-			under += accent.Render(strings.Repeat(tabUnderline, lipgloss.Width(name)))
-		} else {
-			top += muted.Render(name)
-			under += dim.Render(strings.Repeat(ruleLine, lipgloss.Width(name)))
+			style = bold
+			line = accent.Render(strings.Repeat(tabUnderline, lipgloss.Width(name)))
 		}
-		top += tabGap
-		under += dim.Render(strings.Repeat(ruleLine, len(tabGap)))
+		if m.hovering && place.contains(m.hover) {
+			style = style.Underline(true)
+		}
+		top += style.Render(name) + gap
+		under += line + dim.Render(strings.Repeat(ruleLine, len(gap)))
 	}
-	badge := mineBadge.Render(fmt.Sprintf(" %s · %s ", badgeMine, brand.LocalFile))
-	if m.tab != tabMine {
-		badge = teamBadge.Render(fmt.Sprintf(" %s · %s ", badgeTeam, brand.TeamFile))
-	}
-	under += dim.Render(strings.Repeat(ruleLine, max(0, m.width-lipgloss.Width(under))))
-	return []string{spread(top, badge+gutter, m.width), under}
+	return top, under, zones
 }
 
 // pendingLine tells, on the team tabs, that the team file differs from
@@ -201,7 +260,9 @@ func (m *Model) pendingLine() string {
 	return line + muted.Render(" · commit and open a PR")
 }
 
-func (m *Model) footer() []string {
+// footer is the message area, the rule, the toast and the help line, with
+// the zones of the help line's keys; their y is left for screen to set.
+func (m *Model) footer() ([]string, []zone) {
 	var lines []string
 	toast := m.statusLine()
 	switch {
@@ -218,8 +279,34 @@ func (m *Model) footer() []string {
 		}
 	}
 	rule := gutter + dim.Render(strings.Repeat(ruleLine, max(0, m.width-2*len(gutter))))
-	help := spread(gutter+hints(tabKeys[m.tab]), hints(commonKeys)+gutter, m.width)
-	return append(lines, rule, gutter+toast, help)
+	help, zones := m.helpLine()
+	return append(lines, rule, gutter+toast, help), zones
+}
+
+// helpLine is the tab's keys on the left and the common keys on the right;
+// the tab's last keys are dropped when both do not fit.
+func (m *Model) helpLine() (string, []zone) {
+	left := tabKeys[m.tab]
+	right := hints(commonKeys) + gutter
+	for len(left) > 0 && lipgloss.Width(gutter+hints(left))+minSpread+lipgloss.Width(right) > m.width {
+		left = left[:len(left)-1]
+	}
+	leftText := gutter + hints(left)
+	zones := hintZones(left, len(gutter))
+	rightX := lipgloss.Width(leftText) + max(minSpread, m.width-lipgloss.Width(leftText)-lipgloss.Width(right))
+	zones = append(zones, hintZones(commonKeys, rightX)...)
+	return spread(leftText, right, m.width), zones
+}
+
+// hintZones are the zones of hints(bindings) drawn from x on.
+func hintZones(bindings []key.Binding, x int) []zone {
+	zones := make([]zone, 0, len(bindings))
+	for _, binding := range bindings {
+		width := lipgloss.Width(hint(binding))
+		zones = append(zones, zone{area: lineArea(x, 0, width), row: noRow, press: bindingPress(binding)})
+		x += width + len(hintGap)
+	}
+	return zones
 }
 
 func (m *Model) messageLine(line string) string {
@@ -243,25 +330,37 @@ func (m *Model) statusLine() string {
 func hints(bindings []key.Binding) string {
 	parts := make([]string, 0, len(bindings))
 	for _, binding := range bindings {
-		help := binding.Help()
-		parts = append(parts, accentBold.Render(help.Key)+" "+muted.Render(help.Desc))
+		parts = append(parts, hint(binding))
 	}
 	return strings.Join(parts, hintGap)
+}
+
+func hint(binding key.Binding) string {
+	help := binding.Help()
+	return accentBold.Render(help.Key) + " " + muted.Render(help.Desc)
 }
 
 // spread puts left and right on one line of the given width.
 func spread(left string, right string, width int) string {
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
-	return left + strings.Repeat(" ", max(1, gap)) + right
+	return left + strings.Repeat(" ", max(minSpread, gap)) + right
 }
 
 // rows collects a tab's lines and where the cursor row landed.
 type rows struct {
 	lines      []string
+	items      []rowItem
 	cursor     int
 	cursorLine int
-	next       int
 	width      int
+}
+
+// rowItem is a row the cursor can stop on, kept so it can be drawn again
+// under the mouse.
+type rowItem struct {
+	line   int
+	cells  []cell
+	widths []int
 }
 
 func (b *rows) text(line string) {
@@ -270,12 +369,13 @@ func (b *rows) text(line string) {
 
 // item adds a row the cursor can stop on.
 func (b *rows) item(cells []cell, widths []int) {
-	selected := b.next == b.cursor
-	if selected {
+	look := lookPlain
+	if len(b.items) == b.cursor {
+		look = lookSelected
 		b.cursorLine = len(b.lines)
 	}
-	b.lines = append(b.lines, row(cells, widths, selected, b.width))
-	b.next++
+	b.items = append(b.items, rowItem{line: len(b.lines), cells: cells, widths: widths})
+	b.lines = append(b.lines, row(cells, widths, look, b.width))
 }
 
 func (b *rows) header(titles []string, widths []int) {
@@ -283,25 +383,51 @@ func (b *rows) header(titles []string, widths []int) {
 	for _, title := range titles {
 		cells = append(cells, cell{title, colorMuted})
 	}
-	b.text(row(cells, widths, false, b.width))
+	b.text(row(cells, widths, lookPlain, b.width))
 }
 
-// row pads every cell but the last to its column; a selected row has the
-// bar and a highlight up to the screen's edge.
-func row(cells []cell, widths []int, selected bool, width int) string {
+// rowLook is how a row is highlighted.
+type rowLook int
+
+const (
+	lookPlain rowLook = iota
+	// lookSelected is the cursor row: the bar and the selected background.
+	lookSelected
+	// lookHovered is the row under the mouse: a fainter background.
+	lookHovered
+)
+
+// cellPad is between the bar and the first cell.
+const cellPad = " "
+
+// firstCellX is the column a row's first cell starts at.
+func firstCellX() int {
+	return len(gutter) + lipgloss.Width(selectedBar) + len(cellPad)
+}
+
+// row pads every cell but the last to its column and cuts the last one
+// with an ellipsis at the screen's edge; a highlighted row is filled up to
+// that edge.
+func row(cells []cell, widths []int, look rowLook, width int) string {
 	base := lipgloss.NewStyle()
 	bar := noBar
-	if selected {
+	switch look {
+	case lookSelected:
 		base = base.Background(colorSelected)
 		bar = base.Foreground(colorAccent).Render(selectedBar)
+	case lookHovered:
+		base = base.Background(colorHover)
+		bar = base.Render(noBar)
 	}
 	var b strings.Builder
-	b.WriteString(gutter + bar + base.Render(" "))
-	used := len(gutter) + lipgloss.Width(selectedBar) + 1
+	b.WriteString(gutter + bar + base.Render(cellPad))
+	used := firstCellX()
 	for i, c := range cells {
 		text := c.text
 		if i < len(cells)-1 {
 			text += strings.Repeat(" ", max(0, widths[i]-lipgloss.Width(text))) + columnGap
+		} else {
+			text = fitWidth(text, width-used)
 		}
 		style := base
 		if c.color != nil {
@@ -310,10 +436,19 @@ func row(cells []cell, widths []int, selected bool, width int) string {
 		b.WriteString(style.Render(text))
 		used += lipgloss.Width(text)
 	}
-	if selected && used < width {
+	if look != lookPlain && used < width {
 		b.WriteString(base.Render(strings.Repeat(" ", width-used)))
 	}
 	return b.String()
+}
+
+// fitWidth is fitHead that gives nothing when there is no room at all,
+// where even the ellipsis would not fit.
+func fitWidth(text string, width int) string {
+	if width < lipgloss.Width(ellipsis) {
+		return ""
+	}
+	return fitHead(text, width)
 }
 
 // columnWidths is each column's widest cell over the header and all rows.
@@ -335,7 +470,7 @@ func columnWidths(header []string, sets ...[][]cell) []int {
 }
 
 // body returns the tab's lines and the index of the cursor line.
-func (m *Model) body() ([]string, int) {
+func (m *Model) body() *rows {
 	b := &rows{cursor: m.cursor[m.tab], width: m.width}
 	for _, problem := range m.snap.problems {
 		b.text(gutter + messageStyle(problem).Render(problem))
@@ -350,7 +485,7 @@ func (m *Model) body() ([]string, int) {
 	default:
 		m.mcpLines(b)
 	}
-	return b.lines, b.cursorLine
+	return b
 }
 
 func box(on bool) cell {

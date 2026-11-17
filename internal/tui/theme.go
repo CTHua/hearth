@@ -15,7 +15,8 @@ import (
 // drops them under NO_COLOR, so every state also carries a symbol and a word.
 // colorSelected is a neutral gray on purpose: a blue-gray such as #2B3140
 // downgrades to teal at 256 colors and cyan at 16, which tmux shows by
-// default.
+// default. colorHover, the row under the mouse, is fainter than the cursor
+// row and stays gray (235) at 256 colors for the same reason.
 var (
 	colorAccent   = lipgloss.Color("#E8A33D")
 	colorOK       = lipgloss.Color("#8BC47E")
@@ -24,6 +25,7 @@ var (
 	colorMuted    = lipgloss.Color("#868B96")
 	colorDim      = lipgloss.Color("#4B505C")
 	colorSelected = lipgloss.Color("#303030")
+	colorHover    = lipgloss.Color("#262626")
 )
 
 // Status symbols: ok, missing or off, conflict or error, other warnings.

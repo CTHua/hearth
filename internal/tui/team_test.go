@@ -369,7 +369,7 @@ func TestKeySheet(t *testing.T) {
 
 func TestHelpLineHasTheTabsKeys(t *testing.T) {
 	m := newModel(newFake())
-	common := []string{"tab tabs", "? keys", "q quit"}
+	common := []string{"y copy", "tab tabs", "? keys", "q quit"}
 	cases := []struct {
 		tab  string
 		want []string

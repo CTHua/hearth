@@ -143,6 +143,13 @@ type Model struct {
 	job           *job
 	messages      []string
 	quitting      bool
+	// mouseOff gives the mouse back to the terminal, to select text.
+	mouseOff bool
+	// hover is where the mouse last moved; hovering is false until it does.
+	hover    point
+	hovering bool
+	// layout is where render last drew what a click can hit.
+	layout layout
 }
 
 // New returns the UI over actions, already showing the current state.
@@ -184,6 +191,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.form != nil {
 			m.form.insert(msg.Content)
 		}
+	case tea.MouseMsg:
+		return m, m.mouse(msg)
 	}
 	return m, nil
 }
@@ -199,15 +208,15 @@ func (m *Model) key(msg tea.KeyPressMsg) tea.Cmd {
 		m.showKeys = !key.Matches(msg, keys.Help, keys.Cancel)
 		return nil
 	}
-	confirm := m.pendingRemove
-	m.pendingRemove = ""
-	// Any key but a second d drops the question; the second d replaces it.
-	if confirm != "" {
-		m.messages = nil
-	}
+	confirm := m.dropQuestion()
 	switch {
 	case key.Matches(msg, keys.Help):
 		m.showKeys = true
+		return nil
+	case key.Matches(msg, keys.Copy):
+		return m.copy()
+	case key.Matches(msg, keys.Mouse):
+		m.toggleMouse()
 		return nil
 	case key.Matches(msg, keys.Tabs):
 		m.tab = tab(msg.String()[0] - firstTabKey)
@@ -240,6 +249,17 @@ func (m *Model) key(msg tea.KeyPressMsg) tea.Cmd {
 		return m.skillsKey(msg, confirm)
 	}
 	return m.mcpKey(msg, confirm)
+}
+
+// dropQuestion forgets a pending remove and returns its name. Any key or
+// click but a second d drops the question; the second d replaces it.
+func (m *Model) dropQuestion() string {
+	confirm := m.pendingRemove
+	m.pendingRemove = ""
+	if confirm != "" {
+		m.messages = nil
+	}
+	return confirm
 }
 
 // interrupt cancels the running action and stays on screen until it ends;

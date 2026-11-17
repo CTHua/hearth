@@ -73,6 +73,9 @@ TUI（`hearth` 或 `hearth ui`）：
 - team 分頁（Repos、Skills、MCP）改 `hearth.toml`：`a` 新增、`d` 按兩次移除；Skills 只列 external skill，`u` 換 pin。新增 MCP server 的表單只收 command、url、env vars；http 的 token、header 用 CLI。
 - team 分頁的頁首列出 `hearth.toml` 跟 HEAD 比的改動數和被移除的名字，有改動的列標 `+`（新增）或 `~`（內容不同）。
 - `?` 開快捷鍵表；終端機小於 80×24 時只顯示放大視窗的提示。
+- 滑鼠：點分頁、列、Mine 的勾選框和底部說明列的鍵，效果跟按鍵相同，移除一樣要確認兩次；滾輪移動游標；表單或快捷鍵表開著時點外面等於 `esc`。tmux 裡要 `set -g mouse on`。
+- `y` 用 OSC 52 把選到那列的 URL（沒有就送狀態訊息或目前的提示）送到剪貼簿；終端機不支援 OSC 52 時不會生效。
+- `m` 關掉滑鼠、把拖曳選字還給終端機，右上角顯示 `mouse off`，再按一次恢復。不關也可以按住修飾鍵選字：iTerm2 是 Option，Ghostty、WezTerm 是 Shift。
 
 - `hearth upgrade` 只改標記之間的內容和設定檔的 `schema_version`，標記外逐 byte 不變；標記區段被手改過也整段重寫。標記缺少、重複或順序錯時 exit 2、什麼都不寫。`hearth.local.toml` 不存在就跳過。`hearth doctor` 在標記區段跟目前版本不同時只警告。
 - 所有指令從目前目錄往上找 `hearth.toml` 決定根目錄，也可以用 `-C <dir>`。

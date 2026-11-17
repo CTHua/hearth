@@ -22,6 +22,8 @@ type keyMap struct {
 	Clone     key.Binding
 	Fix       key.Binding
 	Sync      key.Binding
+	Copy      key.Binding
+	Mouse     key.Binding
 	Help      key.Binding
 	NextField key.Binding
 	PrevField key.Binding
@@ -46,6 +48,8 @@ var keys = keyMap{
 	Clone:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "clone all")),
 	Fix:       key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fix remote")),
 	Sync:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sync")),
+	Copy:      key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
+	Mouse:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mouse on/off")),
 	Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "keys")),
 	NextField: key.NewBinding(key.WithKeys("tab", "down"), key.WithHelp("tab", "next field")),
 	PrevField: key.NewBinding(key.WithKeys("shift+tab", "up"), key.WithHelp("shift+tab", "previous field")),
@@ -55,12 +59,13 @@ var keys = keyMap{
 }
 
 // tabKeys are each tab's most used keys, shown on the left of the help
-// line; commonKeys are on its right on every tab.
+// line, most important first: the last ones are dropped when the line is
+// too narrow. commonKeys are on its right on every tab and always kept.
 var tabKeys = [tabCount][]key.Binding{
-	{keys.Toggle, keys.Sync},
-	{keys.Add, keys.Remove, keys.Clone, keys.Fix},
-	{keys.Add, keys.Remove, keys.Update},
-	{keys.Add, keys.Remove},
+	{keys.Toggle, keys.Sync, keys.Copy},
+	{keys.Add, keys.Remove, keys.Clone, keys.Fix, keys.Copy},
+	{keys.Add, keys.Remove, keys.Update, keys.Copy},
+	{keys.Add, keys.Remove, keys.Copy},
 }
 
 var commonKeys = []key.Binding{keys.NextTab, keys.Help, keys.Quit}
@@ -68,21 +73,42 @@ var commonKeys = []key.Binding{keys.NextTab, keys.Help, keys.Quit}
 var formKeys = []key.Binding{keys.Save, keys.NextField, keys.Cancel}
 
 // keySheet is what ? shows: one column for everywhere and Mine, one for
-// the team tabs. A desc is used as a heading when its key is empty.
+// the team tabs, forms and the mouse. A desc is used as a heading when its
+// key is empty. The sheet is as tall as an 80×24 terminal allows, so a new
+// line here needs one taken out.
 var keySheet = [][]key.Binding{
 	{
-		heading("everywhere"), keys.Tabs, keys.NextTab, keys.Up, keys.Down, keys.Interrupt, keys.Quit,
+		heading("everywhere"), keys.Tabs, keys.NextTab, keys.Up, keys.Down,
+		labeled(keys.Copy, "copy URL or message"), labeled(keys.Mouse, "mouse off/on, to select"),
+		keys.Interrupt, keys.Quit,
 		heading(""), heading("mine"), keys.Toggle, keys.Choose, keys.Sync,
 	},
 	{
 		heading("team"), keys.Add, double(keys.Remove), keys.Update,
 		labeled(keys.Clone, "clone all (Repos)"), labeled(keys.Fix, "fix remote (Repos)"),
 		heading(""), heading("forms"), keys.Save, keys.NextField, keys.Cancel,
+		heading(""), heading("mouse"),
+		note("click", "tab, row, box, key hint"),
+		note("wheel", "move the cursor"),
+		// Terminals pass a drag to the app while it has the mouse; a
+		// modifier, or m, gives the drag back to the terminal.
+		note("select", "hold Option (iTerm2) or"),
+		note(continued, "Shift (Ghostty, WezTerm)"),
+		note("tmux", "set -g mouse on"),
 	},
 }
 
+// continued is the key of a line that goes on from the line above; it is
+// not empty, which would make the line a heading.
+const continued = " "
+
 func heading(title string) key.Binding {
 	return key.NewBinding(key.WithHelp("", title))
+}
+
+// note is a key sheet line that is not a key binding, such as a mouse action.
+func note(action string, desc string) key.Binding {
+	return key.NewBinding(key.WithHelp(action, desc))
 }
 
 // double is a key that acts on its second press in a row.
