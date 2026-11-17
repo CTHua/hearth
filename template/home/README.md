@@ -29,8 +29,8 @@ hearth doctor                # 檢查 git、設定檔和每個 checkout
 
 | 檔案 | 誰改 | 版控 |
 | --- | --- | --- |
-| `hearth.toml` | 團隊，透過 `hearth repo add` / `remove`、`hearth skill add` / `remove` / `update` 再開 PR | 進版控 |
-| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol`、`hearth config agents`、`hearth skill enable` / `disable` | 被 `.gitignore` 忽略 |
+| `hearth.toml` | 團隊，透過 `hearth repo add` / `remove`、`hearth skill add` / `remove` / `update`、`hearth mcp add` / `remove` 再開 PR | 進版控 |
+| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol`、`hearth config agents`、`hearth skill enable` / `disable`、`hearth mcp enable` / `disable` | 被 `.gitignore` 忽略 |
 
 `hearth.toml` 的格式：
 
@@ -101,7 +101,7 @@ subdir = "pdf"
 - 沒給 `--commit` 時 `skill add`、`skill update` 用 `git ls-remote` 問遠端 `HEAD`；給了完整 SHA 時不連網。
 - `skill sync` 把外部 skill clone 到 `vendor/skills/<name>`、detached 在 pin，內建的 `hearth` skill 寫到 `.hearth/skills/hearth/`，再 symlink 到 `.claude/skills/`（`claude`）、`.agents/skills/`（`codex`）。已經在 pin 的不 clone、不 fetch。
 - `skill remove` 只改 `hearth.toml`：下次 `sync` 清掉 link，`vendor/skills/<name>` 要自己刪。
-- `doctor` 也檢查選到的 skill。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
+- `doctor` 也檢查選到的 skill 和 MCP server。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
 
 | 類別 | 意思 | 怎麼處理 |
 | --- | --- | --- |
@@ -113,6 +113,57 @@ subdir = "pdf"
 | `link-conflict` | 那個位置有你自己的檔案或 link，`hearth` 不動它 | 自己移走再 `sync` |
 | `symlink-unavailable` | 這個檔案系統建不了 symlink；`hearth` 不改用複製 | 換一個支援 symlink 的位置 |
 | `unknown` | 你選著的 skill 已經被移除；當成沒選 | `hearth skill disable <name>` |
+
+`hearth sync` 先跑 `hearth skill sync`，再跑 `hearth mcp sync`，exit code 取比較嚴重的那個。
+
+## MCP server
+
+```sh
+hearth mcp add docs --env-var DOCS_TOKEN -- npx -y @acme/docs-mcp           # stdio，團隊檔
+hearth mcp add tracker --url https://mcp.example.invalid/mcp --bearer-token-env TRACKER_TOKEN \
+  --header-env 'X-Workspace=TRACKER_WORKSPACE'                              # http，團隊檔
+hearth mcp enable docs tracker                                              # 個人檔
+hearth sync                                                                 # 產生各 agent 的 MCP 設定
+hearth mcp list                                                             # 只讀；列出缺的環境變數名稱
+```
+
+`hearth.toml` 的 MCP server：
+
+```toml
+[[mcp]]
+name = "docs"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@acme/docs-mcp"]
+env_vars = ["DOCS_TOKEN"]
+
+[[mcp]]
+name = "tracker"
+transport = "http"
+url = "https://mcp.example.invalid/mcp"
+bearer_token_env = "TRACKER_TOKEN"
+header_envs = { "X-Workspace" = "TRACKER_WORKSPACE" }
+```
+
+| 欄位 | 規則 |
+| --- | --- |
+| `name` | 英數字、`_`、`-`，以英數字開頭，不能有 `.`。不分大小寫不得重複 |
+| `transport` | `stdio` 或 `http` |
+| `command`、`args`、`env_vars` | 只給 `stdio`。`command` 必填；`env_vars` 是要轉發給 server 的環境變數名稱 |
+| `url`、`bearer_token_env`、`header_envs` | 只給 `http`。`url` 必須是 `https://`，或 `http://localhost`、`http://127.0.0.1`（可帶 port 和 path），不能帶帳號密碼；`header_envs` 是「header 名稱 → 環境變數名稱」，不能有 `Authorization`（token 用 `bearer_token_env`） |
+
+- 秘密只寫環境變數名稱（大寫英數字和 `_`），不寫值；這個檔案沒有地方放 token 或 header 的值。
+- `hearth.local.toml` 的個人選擇：`mcp = ["docs"]`。被團隊移除的 server 會變成 `unknown` 警告，用 `hearth mcp disable <name>` 清掉。
+- `sync` 照你選的 agent 整檔產生：`claude` 寫 `.mcp.json`，`codex` 寫 `.codex/config.toml`，兩個都被 `.gitignore` 忽略。取消 agent 後，`sync` 會刪掉它產生過的那份。
+- Claude Code 第一次讀到 `.mcp.json` 的 server 時會要求你核准；Codex 只在 trusted project 讀 `.codex/config.toml`。
+- 環境變數要在啟動 agent 的那個 shell 裡 export；`hearth doctor` 只能檢查跑 doctor 的那個 shell。
+- `sync` 把產生的檔案的 hash 記在 `.hearth/state.json`。檔案被手改過，`sync` 不覆寫也不刪它，報 `generated-modified`、exit 1，其他檔照常更新；`hearth sync --force` 才覆寫。
+- `.mcp.json`、`.codex`、`.hearth` 和它們底下的檔案是 symlink 或類型不對時報 `path-conflict`，加 `--force` 也不寫。
+
+| 類別 | 意思 | 怎麼處理 |
+| --- | --- | --- |
+| `generated-modified` | 產生的檔案在上次 `sync` 之後被改過，或檔案已經存在但不是 `hearth` 寫的 | 把要的設定改進 `hearth.toml`，再 `hearth sync --force` |
+| `env-missing` | 選到的 server 需要的環境變數沒設，或 `command` 不在 PATH。只是警告，只印名稱 | 在啟動 agent 的 shell 裡 export 那個變數，或安裝那個指令 |
 
 ## ssh 或 https
 
@@ -191,7 +242,8 @@ subdir = "pdf"
 | `products/` | 產品 repo 的 checkout。由 `hearth clone` 建立，不在版控內 |
 | `memory/` | 團隊記憶：跨產品的決策和團隊習慣，不記系統規格，見 [`memory/README.md`](memory/README.md) |
 | `skills/` | 團隊自己寫的 skill 和模板，見 [`skills/README.md`](skills/README.md) |
-| `vendor/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth skill sync` 產生的外部 skill、內建 skill 和 link，不在版控內 |
+| `vendor/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth sync` 產生的外部 skill、內建 skill 和 link，不在版控內 |
+| `.mcp.json`、`.codex/` | `hearth sync` 產生的 MCP 設定，不在版控內 |
 | `agents/` | 派工給 agent 的 prompt 模板，以及記錄預設模型的 `models.json`，見 [`agents/README.md`](agents/README.md) |
 | `.claude/` | Claude Code 的共用設定（`settings.json`）和 subagent 定義（`agents/subagent.md`） |
 | `workflows/` | 開發、code review、跨 repo 變更的流程，見 [`workflows/README.md`](workflows/README.md) |
@@ -264,7 +316,7 @@ rg <pattern> products/<name>
 
 ### .gitignore 不是安全隔離
 
-`.gitignore` 忽略 `/products/`、`/hearth.local.toml`、`hearth skill sync` 產生的目錄、常見的憑證檔和 Claude Code 的本機設定（`.claude/settings.local.json`、`CLAUDE.local.md`），只代表 Home Repo 不追蹤那些檔案。它不是 agent 的讀寫權限設定，也不是安全隔離機制：
+`.gitignore` 忽略 `/products/`、`/hearth.local.toml`、`hearth sync` 產生的目錄和 MCP 設定、常見的憑證檔和 Claude Code 的本機設定（`.claude/settings.local.json`、`CLAUDE.local.md`），只代表 Home Repo 不追蹤那些檔案。它不是 agent 的讀寫權限設定，也不是安全隔離機制：
 
 - agent 讀得到、也改得到 `products/` 裡的所有檔案，包含產品 repo 裡的憑證和本機設定。
 - 要限制 agent 能讀寫的範圍，請用你的 agent 工具自己的權限設定或 sandbox。
@@ -276,7 +328,6 @@ rg <pattern> products/<name>
 
 - 安裝、登入或設定 agent 工具。
 - 把 `agents/` 接到任何工具的自動載入位置。`.claude/agents/subagent.md` 是另外寫的一個定義，不是 `agents/` 的連結。skill 只有每個人選了、跑過 `hearth skill sync` 才會接到 `.claude/skills/`、`.agents/skills/`。
-- MCP 設定。
 - quality-gate 的選擇（要跑哪些 lint、型別檢查、測試門檻）。產品各自照自己 repo 的規範。
 - LICENSE。
 - Windows 支援。

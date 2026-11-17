@@ -6,11 +6,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
+	"github.com/CTHua/hearth/internal/tomlstr"
 )
 
 const filePerm fs.FileMode = 0o644
@@ -32,6 +34,7 @@ type personalPart struct {
 	Protocol      string   `toml:"protocol,omitempty"`
 	Agents        []string `toml:"agents,omitempty"`
 	Skills        []string `toml:"skills,omitempty"`
+	MCP           []string `toml:"mcp,omitempty"`
 }
 
 // WriteTeam replaces the whole team file under root. Only the fixed header
@@ -50,7 +53,8 @@ func WriteTeam(root string, t Team) error {
 			return apperr.New(apperr.Config, "cannot encode %s: %v", brand.TeamFile, err)
 		}
 	}
-	// Repos come before skills, each in the order they were added.
+	// Repos come before skills, then MCP servers, each in the order they
+	// were added.
 	tables := []struct {
 		present bool
 		part    any
@@ -67,14 +71,55 @@ func WriteTeam(root string, t Team) error {
 			return apperr.New(apperr.Config, "cannot encode %s: %v", brand.TeamFile, err)
 		}
 	}
+	for _, server := range t.MCP {
+		buf.WriteString("\n")
+		buf.WriteString(encodeMCP(server))
+	}
 	return writeFile(filepath.Join(root, brand.TeamFile), buf.Bytes())
+}
+
+// encodeMCP writes one [[mcp]] table by hand: the encoder would sort
+// header_envs and write it as a separate table instead of inline in the
+// order it was read. Empty optional keys are left out.
+func encodeMCP(m MCP) string {
+	var b strings.Builder
+	b.WriteString("[[" + keyMCP + "]]\n")
+	b.WriteString(tomlstr.Line(FieldName, tomlstr.Quote(m.Name)))
+	b.WriteString(tomlstr.Line(FieldTransport, tomlstr.Quote(m.Transport)))
+	optional := []struct {
+		field string
+		set   bool
+		value string
+	}{
+		{FieldCommand, m.Command != "", tomlstr.Quote(m.Command)},
+		{FieldArgs, len(m.Args) > 0, tomlstr.Array(m.Args)},
+		{FieldEnvVars, len(m.EnvVars) > 0, tomlstr.Array(m.EnvVars)},
+		{FieldURL, m.URL != "", tomlstr.Quote(m.URL)},
+		{FieldBearerTokenEnv, m.BearerTokenEnv != "", tomlstr.Quote(m.BearerTokenEnv)},
+		{FieldHeaderEnvs, len(m.HeaderEnvs) > 0, tomlstr.InlineTable(HeaderPairs(m.HeaderEnvs))},
+	}
+	for _, key := range optional {
+		if key.set {
+			b.WriteString(tomlstr.Line(key.field, key.value))
+		}
+	}
+	return b.String()
+}
+
+// HeaderPairs returns headers as header-variable pairs in order.
+func HeaderPairs(headers []HeaderEnv) [][2]string {
+	pairs := make([][2]string, 0, len(headers))
+	for _, h := range headers {
+		pairs = append(pairs, [2]string{h.Header, h.Var})
+	}
+	return pairs
 }
 
 // WritePersonal replaces the personal file under root with every key of p,
 // so a command that changes one key keeps the others.
 func WritePersonal(root string, p Personal) error {
 	var buf bytes.Buffer
-	part := personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents, Skills: p.Skills}
+	part := personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents, Skills: p.Skills, MCP: p.MCP}
 	if err := encode(&buf, part); err != nil {
 		return apperr.New(apperr.Config, "cannot encode %s: %v", brand.LocalFile, err)
 	}

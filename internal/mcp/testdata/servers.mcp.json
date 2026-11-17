@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "docs": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@acme/docs-mcp"
+      ],
+      "env": {
+        "DOCS_TOKEN": "${DOCS_TOKEN}",
+        "DOCS_ORG": "${DOCS_ORG}"
+      }
+    },
+    "Local": {
+      "type": "stdio",
+      "command": "./bin/serve",
+      "args": []
+    },
+    "tracker": {
+      "type": "http",
+      "url": "https://mcp.example.invalid/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TRACKER_TOKEN}",
+        "X-Workspace": "${TRACKER_WORKSPACE}",
+        "X-Team": "${TRACKER_TEAM}"
+      }
+    },
+    "dev": {
+      "type": "http",
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}

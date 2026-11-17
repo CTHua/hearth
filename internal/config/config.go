@@ -50,6 +50,7 @@ type Team struct {
 	MinVersion    string
 	Repos         []Repo
 	Skills        []Skill
+	MCP           []MCP
 }
 
 // Personal is the content of the personal file. Protocol is empty and the
@@ -61,6 +62,9 @@ type Personal struct {
 	// Skills are the chosen skill names. A name may no longer exist in any
 	// source; callers treat such a stale choice as not chosen.
 	Skills []string
+	// MCP are the chosen MCP server names; stale ones are treated the same
+	// way as stale skills.
+	MCP []string
 }
 
 // Home is a loaded home repo.

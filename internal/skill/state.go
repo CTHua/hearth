@@ -24,7 +24,7 @@ type State string
 const (
 	OK           State = "ok"
 	Disabled     State = "disabled"
-	Unknown      State = "unknown"
+	Unknown            = State(apperr.Unknown)
 	NotInstalled       = State(apperr.NotInstalled)
 	PinMismatch        = State(apperr.PinMismatch)
 	SkillInvalid       = State(apperr.SkillInvalid)

@@ -8,7 +8,9 @@
 | --- | --- |
 | `cmd/hearth/main.go` | 入口，只做參數分派 |
 | `internal/cli` | 子指令和參數解析（標準庫 `flag`） |
-| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`）的讀寫、驗證、版本 gate、根目錄搜尋 |
+| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`）的讀寫、驗證、版本 gate、根目錄搜尋 |
+| `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、`.hearth/state.json` 的 hash 判斷、環境變數和 PATH 檢查 |
+| `internal/tomlstr` | 手寫 TOML 值（字串、陣列、inline table），給 encoder 無法保留順序的地方用 |
 | `internal/giturl` | 三種 URL 寫法的解析和 ssh／https 轉換 |
 | `internal/gitx` | 拿掉繼承的 git local env vars 後執行 git |
 | `internal/checkout` | 只讀檢查一個 checkout 的狀態；路徑上的 symlink 檢查和 checkout root 檢查也給 `internal/skill` 用 |
@@ -33,8 +35,8 @@
 - 測試只碰公開介面，不連網路。要用 git 的測試在 `TestMain` 呼叫 `gittest.Main`，遠端用 `gittest.BareRemote` 和 `gittest.Redirect`。
 - 相依只有 `github.com/BurntSushi/toml`。新增或升級相依先討論。
 - 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。
-  - 例外：第一次發布前只有開發者自己用（2026-11-17 定），P2 加的 `[[skills]]`、`agents`、`skills` 直接加進 `schema_version = 1`，不寫遷移。發布之後這條例外失效。
+  - 例外：第一次發布前只有開發者自己用（2026-11-17 定），P2 加的 `[[skills]]`、`agents`、`skills` 和 P3 加的 `[[mcp]]`、`mcp` 直接加進 `schema_version = 1`，不寫遷移。發布之後這條例外失效。
 - 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。
-- 不產生 agent 的自動載入設定：`.mcp.json`、`.codex/config.toml`。
-- skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
+- agent 的 MCP 設定（`.mcp.json`、`.codex/config.toml`）和 `.hearth/state.json` 只由 `hearth sync` / `hearth mcp sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫。秘密只寫環境變數名稱。
+- skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth sync` / `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
 - 未經要求不 commit、不 push、不打 tag、不發 Release。

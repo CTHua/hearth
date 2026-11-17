@@ -41,12 +41,24 @@ commands:
   skill sync                 install the chosen skills into vendor/skills/
                              and link them for each chosen agent
   skill list                 show every skill and its state
+  mcp add <name> [--env-var VAR]... -- <command> [args...]
+  mcp add <name> --url <url> [--bearer-token-env VAR] [--header-env 'Header=VAR']...
+                             add a stdio or http MCP server to %[2]s;
+                             secrets are named by environment variable only
+  mcp remove <name>          remove an MCP server from %[2]s
+  mcp enable <name>...       choose MCP servers in %[3]s
+  mcp disable <name>...      stop using MCP servers, including removed ones
+  mcp sync [--force]         write .mcp.json (claude) and .codex/config.toml
+                             (codex) for the chosen agents; --force
+                             overwrites files edited by hand
+  mcp list                   show every MCP server and missing variables
+  sync [--force]             skill sync, then mcp sync; --force is for MCP
   config protocol [ssh|https]
                              show or set your protocol in %[3]s
   config agents [claude,codex|none]
                              show or set your agents in %[3]s
-  doctor                     check git, both config files, every checkout
-                             and every chosen skill
+  doctor                     check git, both config files, every checkout,
+                             every chosen skill and MCP server
   version                    print the version
   help                       show this help
 
@@ -54,8 +66,8 @@ options:
   -C <dir>  run as if started in <dir>; the home repo is the first directory
             at or above it that holds %[2]s
 
-exit codes: 0 ok, 1 some repo or skill failed, 2 config/usage/env/version
-error, 130 interrupted
+exit codes: 0 ok, 1 some repo, skill or generated file failed, 2
+config/usage/env/version error, 130 interrupted
 `
 
 // streams bundles what a command writes to.
@@ -103,6 +115,8 @@ func dispatch(ctx context.Context, s streams, args []string) error {
 		"clone":   runClone,
 		"repo":    runRepo,
 		"skill":   runSkill,
+		"mcp":     runMCP,
+		"sync":    runSync,
 		"config":  runConfig,
 		"doctor":  runDoctor,
 		"version": runVersion,

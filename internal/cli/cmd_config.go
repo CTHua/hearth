@@ -104,7 +104,7 @@ func runConfigAgents(_ context.Context, s streams, g globals, args []string) err
 	if err := config.WritePersonal(home.Root, home.Personal.WithAgents(agents)); err != nil {
 		return err
 	}
-	fmt.Fprintf(s.out, "agents: %s (saved to %s); run `%s skill sync`\n", agentsLabel(agents), brand.LocalFile, brand.Name)
+	fmt.Fprintf(s.out, "agents: %s (saved to %s); run `%s sync`\n", agentsLabel(agents), brand.LocalFile, brand.Name)
 	return nil
 }
 

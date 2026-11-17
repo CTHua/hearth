@@ -9,7 +9,7 @@
 - clone 全部產品：`hearth clone`；看每個產品的狀態：`hearth repo list`；檢查環境和設定：`hearth doctor`。
 - 產品清單在 `hearth.toml`。要新增或移除產品時，請使用者自己跑 `hearth repo add <url>` / `hearth repo remove <name>`，不要手改 `hearth.toml`；agent 的 sandbox 可能擋掉寫入。
 - 每個人的 ssh／https 選擇在 `hearth.local.toml`（不進版控），用 `hearth config protocol` 查看或設定。
-- skill：團隊清單用 `hearth skill add <url>` / `hearth skill remove <name>`，個人選擇用 `hearth skill enable` / `disable <name>`、`hearth config agents`，再由使用者跑 `hearth skill sync`；`hearth skill list` 看狀態。
+- skill 和 MCP server：團隊清單用 `hearth skill add <url>` / `remove <name>`、`hearth mcp add <name>` / `remove <name>`，個人選擇用 `hearth skill enable` / `disable <name>`、`hearth mcp enable` / `disable <name>`、`hearth config agents`，再由使用者跑 `hearth sync`；`hearth skill list`、`hearth mcp list` 看狀態。
 <!-- hearth:end -->
 
 ## 這個 repo 是什麼
@@ -24,12 +24,13 @@ Home Repo 是工程團隊的共同工作入口，集中放團隊記憶、skills�
 | --- | --- | --- |
 | `README.md` | 環境需求、快速開始、`hearth` 指令和錯誤處理 | 第一次設定，或 `hearth` 出錯 |
 | `hearth.toml` | 產品 repo 清單（`[[repos]]`）和釘在 commit 的外部 skill（`[[skills]]`） | 要找產品 repo 或外部 skill |
-| `hearth.local.toml` | 個人設定：`protocol`（`ssh` 或 `https`）、`agents`、`skills`。不在版控內 | 要知道使用者用哪個協定 clone、選了哪些 skill |
+| `hearth.local.toml` | 個人設定：`protocol`（`ssh` 或 `https`）、`agents`、`skills`、`mcp`。不在版控內 | 要知道使用者用哪個協定 clone、選了哪些 skill 和 MCP server |
 | `products/` | 產品 repo 的 checkout，位置是 `hearth.toml` 裡該產品的 `path`。不在 Home Repo 的版控內 | 任務指定的那個產品 |
 | `memory/decisions/` | 經確認的跨產品決策 | 任務涉及跨產品的設計或取捨 |
 | `memory/conventions/` | 團隊的習慣和慣例 | 動手前確認團隊約定的做法 |
 | `skills/<name>/SKILL.md` | 團隊自己寫的可重用操作步驟 | 任務符合某個 skill 的適用情境 |
-| `vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth skill sync` 產生的外部 skill checkout、內建 skill 和各 agent 的 link。不在版控內，不要手改 | 不用讀；agent 會從自己的 skills 目錄載入 |
+| `vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth sync` 產生的外部 skill checkout、內建 skill 和各 agent 的 link。不在版控內，不要手改 | 不用讀；agent 會從自己的 skills 目錄載入 |
+| `.mcp.json`、`.codex/config.toml` | `hearth sync` 照 `hearth.toml` 的 `[[mcp]]` 和個人選擇產生的 MCP 設定，只寫環境變數名稱。不在版控內，不要手改 | 不用讀；要改 MCP server 就改 `hearth.toml` |
 | `agents/` | 派工給另一個 agent 用的 prompt 模板；`agents/models.json` 記錄各角色的預設模型 | 要把任務交給另一個 agent 時 |
 | `.claude/settings.json`、`.claude/agents/` | Claude Code 的共用設定和 subagent 定義 | 要改 Claude Code 的模型設定時 |
 | `workflows/` | 開發、code review、跨 repo 變更的最小流程 | 開始對應類型的任務前 |
@@ -87,9 +88,10 @@ Home Repo 是工程團隊的共同工作入口，集中放團隊記憶、skills�
 
 ## 個人設定
 
-- `hearth.local.toml` 是每個人自己的設定。不要替使用者建立或修改它；需要改 protocol、agents 或 skill 選擇時，請使用者自己跑 `hearth config protocol <ssh|https>`、`hearth config agents <claude,codex|none>`、`hearth skill enable` / `disable <name>`。
+- `hearth.local.toml` 是每個人自己的設定。不要替使用者建立或修改它；需要改 protocol、agents、skill 或 MCP 選擇時，請使用者自己跑 `hearth config protocol <ssh|https>`、`hearth config agents <claude,codex|none>`、`hearth skill enable` / `disable <name>`、`hearth mcp enable` / `disable <name>`。
 - 團隊自己寫的 skill 放 `skills/`；外部 skill 用 `hearth skill add` 釘在 commit，不複製進 repo。
-- `hearth skill sync` 會寫 `.agents/`、`.claude/skills/` 等目錄，agent 的 sandbox 可能擋下；被擋時請使用者自己跑。
+- `hearth sync` 會寫 `.agents/`、`.claude/skills/`、`.mcp.json`、`.codex/` 等位置，agent 的 sandbox 可能擋下；被擋時請使用者自己跑。
+- MCP server 的秘密只用環境變數名稱表達，不要把 token 或 header 的值寫進任何檔案。
 
 ## 多個 agent 同時工作
 

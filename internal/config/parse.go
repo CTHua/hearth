@@ -26,14 +26,17 @@ const (
 type document struct {
 	file   string
 	values map[string]any
+	// keys are every key in the order the file wrote them; maps lose it.
+	keys []toml.Key
 }
 
 func decode(file string, data []byte) (document, error) {
 	values := map[string]any{}
-	if _, err := toml.Decode(string(data), &values); err != nil {
+	meta, err := toml.Decode(string(data), &values)
+	if err != nil {
 		return document{}, apperr.List{configError(file, "%v", err)}
 	}
-	return document{file: file, values: values}, nil
+	return document{file: file, values: values, keys: meta.Keys()}, nil
 }
 
 func checkSchema(doc document) apperr.List {
@@ -103,7 +106,7 @@ func unknownKeys(doc document, allowed ...string) apperr.List {
 }
 
 func parseTeam(doc document) (Team, apperr.List) {
-	problems := unknownKeys(doc, keySchemaVersion, brand.MinVersionKey, keyRepos, keySkills)
+	problems := unknownKeys(doc, keySchemaVersion, brand.MinVersionKey, keyRepos, keySkills, keyMCP)
 	team := Team{
 		SchemaVersion: doc.values[keySchemaVersion].(int64),
 		MinVersion:    doc.values[brand.MinVersionKey].(string),
@@ -125,6 +128,12 @@ func parseTeam(doc document) (Team, apperr.List) {
 			team.Skills[i] = Skill{Name: v[FieldName], URL: v[FieldURL], Commit: v[FieldCommit], Subdir: v[FieldSubdir]}
 		}
 		problems = append(problems, located(doc, skillValues.reported, checkSkills(team.Skills, skillValues.reported, nil))...)
+	}
+	servers, reported, mcpProblems := decodeMCP(doc)
+	problems = append(problems, mcpProblems...)
+	if servers != nil {
+		team.MCP = servers
+		problems = append(problems, located(doc, reported, checkMCP(servers, reported))...)
 	}
 	return team, problems
 }
@@ -217,7 +226,7 @@ func decodeEntry(table string, fields []string, index int, entry map[string]any)
 }
 
 func parsePersonal(doc document) (Personal, apperr.List) {
-	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keySkills)
+	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keySkills, keyMCP)
 	personal := Personal{SchemaVersion: doc.values[keySchemaVersion].(int64)}
 	if raw, present := doc.values[keyProtocol]; present {
 		text, isString := raw.(string)
@@ -232,7 +241,11 @@ func parsePersonal(doc document) (Personal, apperr.List) {
 	problems = append(problems, agentProblems...)
 	skills, skillProblems := stringList(doc, keySkills, chosenSkillProblem)
 	personal.Skills = skills
-	return personal, append(problems, skillProblems...)
+	problems = append(problems, skillProblems...)
+	// Like skills, a chosen name no server has is a stale choice, not an error.
+	servers, serverProblems := stringList(doc, keyMCP, MCPNameProblem)
+	personal.MCP = servers
+	return personal, append(problems, serverProblems...)
 }
 
 // stringList reads the array of strings called key; an absent key is an

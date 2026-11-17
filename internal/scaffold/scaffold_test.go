@@ -24,8 +24,13 @@ func TestMain(m *testing.M) {
 // `skill sync` installs external skills, so the docs name it.
 var forbiddenMentions = []string{
 	"scripts/bootstrap", "scripts/setup", "repos.json", "repos.example.json", "skills.json",
-	"config.toml", "config.example.toml", "tests/", "python3",
+	"config.example.toml", "tests/", "python3",
 }
+
+// pythonConfigRE is the Python reference version's config.toml as a file
+// name of its own. Since P3 the docs name `.codex/config.toml`, which `sync`
+// writes, so a config.toml right after "/" is allowed.
+var pythonConfigRE = regexp.MustCompile(`(?:^|[^/])config\.toml`)
 
 // init never writes agent auto-load settings or the directories that only
 // `skill sync` creates.
@@ -206,6 +211,7 @@ func TestAgentsBlock(t *testing.T) {
 		"github.com/" + ownRepo,
 		brand.Name + " clone", brand.Name + " repo list", brand.Name + " doctor",
 		brand.Name + " repo add", brand.Name + " repo remove", brand.TeamFile,
+		brand.Name + " sync", brand.Name + " mcp add", brand.Name + " mcp enable",
 	}
 	for _, want := range wants {
 		if !strings.Contains(text, want) {
@@ -282,11 +288,49 @@ func TestGeneratedRepoDropsPythonAndSkillInstaller(t *testing.T) {
 				t.Errorf("%s mentions %q", path, mention)
 			}
 		}
+		if match := pythonConfigRE.FindString(text); match != "" {
+			t.Errorf("%s mentions %q", path, match)
+		}
 	}
 	for _, path := range forbiddenPaths {
 		if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(path))); err == nil {
 			t.Errorf("%s exists", path)
 		}
+	}
+}
+
+func TestPythonConfigCheckAllowsOnlyCodexPath(t *testing.T) {
+	for _, sample := range []string{"config.toml", "edit `config.toml`", "see ./config.toml.bak and config.toml"} {
+		if !pythonConfigRE.MatchString(sample) {
+			t.Errorf("missed %q", sample)
+		}
+	}
+	if pythonConfigRE.MatchString("writes `.codex/config.toml` for codex") {
+		t.Error("flagged .codex/config.toml")
+	}
+}
+
+func TestGitignoreBlockIgnoresMCPOutputs(t *testing.T) {
+	dir := initHome(t)
+	block := markerBlock(t, ".gitignore", readFile(t, filepath.Join(dir, ".gitignore")), brand.GitignoreBegin, brand.GitignoreEnd)
+	for _, want := range []string{"/.mcp.json", "/.codex/"} {
+		if !strings.Contains(strings.Join(block, "\n")+"\n", want+"\n") {
+			t.Errorf("block lacks %q", want)
+		}
+	}
+	paths := []string{".mcp.json", ".codex/config.toml", brand.StateFile}
+	for _, path := range paths {
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ignored := gittest.Git(t, dir, append([]string{"check-ignore"}, paths...)...)
+	if strings.Count(ignored, "\n") != len(paths) {
+		t.Errorf("check-ignore: %q", ignored)
 	}
 }
 

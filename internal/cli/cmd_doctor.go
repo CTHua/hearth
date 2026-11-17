@@ -13,6 +13,7 @@ import (
 	"github.com/CTHua/hearth/internal/config"
 	"github.com/CTHua/hearth/internal/giturl"
 	"github.com/CTHua/hearth/internal/gitx"
+	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/scaffold"
 	"github.com/CTHua/hearth/internal/skill"
 	"github.com/CTHua/hearth/internal/version"
@@ -94,6 +95,8 @@ func runDoctor(ctx context.Context, s streams, g globals, args []string) error {
 	} else {
 		report.ok("protocol %s", home.Personal.Protocol)
 	}
+	// Before the git check returns: these need no git.
+	checkMCP(report, home)
 	if git == nil {
 		report.warn("checkouts not checked because git is missing")
 		return report.exit()
@@ -136,6 +139,26 @@ func checkSkills(ctx context.Context, report *doctorReport, git *gitx.Git, home 
 		}
 	}
 	return nil
+}
+
+// checkMCP reports only the chosen servers. A missing variable or command
+// is only a warning: many variables are set only in some shells. Names are
+// printed, never values.
+func checkMCP(report *doctorReport, home *config.Home) {
+	for _, row := range mcp.Inspect(home) {
+		switch {
+		case !row.Enabled:
+			continue
+		case row.Stale:
+			report.warn("[%s] %s: %s", apperr.Unknown, row.Name, mcp.StaleDetail(row.Name))
+		case len(row.Warnings()) == 0:
+			report.ok("mcp server %s (%s)", row.Name, row.Transport)
+		default:
+			for _, warning := range row.Warnings() {
+				report.warn("[%s] %s: %s", apperr.EnvMissing, row.Name, warning)
+			}
+		}
+	}
 }
 
 func checkGit(ctx context.Context, report *doctorReport) *gitx.Git {

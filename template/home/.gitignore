@@ -10,6 +10,10 @@
 /.hearth/
 /.claude/skills/
 /.agents/skills/
+# Written by `hearth sync` from the chosen MCP servers; .hearth/ above holds
+# their hashes.
+/.mcp.json
+/.codex/
 # hearth:end
 
 # Credentials

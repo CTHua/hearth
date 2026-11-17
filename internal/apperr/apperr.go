@@ -31,6 +31,12 @@ const (
 	LinkStale          Category = "link-stale"
 	LinkConflict       Category = "link-conflict"
 	SymlinkUnavailable Category = "symlink-unavailable"
+	// Unknown is a chosen skill or MCP server name the team file no longer has.
+	Unknown Category = "unknown"
+
+	// MCP categories.
+	GeneratedModified Category = "generated-modified"
+	EnvMissing        Category = "env-missing"
 )
 
 // Exit codes, the same as the Python bootstrap script.

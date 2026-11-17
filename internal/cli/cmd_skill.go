@@ -26,6 +26,7 @@ const (
 	warnedLabel = "warned"
 	listSep     = ", "
 	pathSep     = "/"
+	skillGroup  = "skill"
 )
 
 // skillFlags are the skill add flags that set a field of the same name.
@@ -258,7 +259,7 @@ func runSkillUpdate(ctx context.Context, s streams, g globals, args []string) er
 }
 
 func runSkillEnable(_ context.Context, s streams, g globals, args []string) error {
-	names, home, err := personalSkillArgs(s, g, args, "enable")
+	names, home, err := personalNameArgs(s, g, args, skillGroup, "enable")
 	if err != nil || home == nil {
 		return err
 	}
@@ -300,7 +301,7 @@ func runSkillEnable(_ context.Context, s streams, g globals, args []string) erro
 // runSkillDisable also removes stale choices, names no skill has any more,
 // which is why it does not look at the catalog.
 func runSkillDisable(_ context.Context, s streams, g globals, args []string) error {
-	names, home, err := personalSkillArgs(s, g, args, "disable")
+	names, home, err := personalNameArgs(s, g, args, skillGroup, "disable")
 	if err != nil || home == nil {
 		return err
 	}
@@ -329,20 +330,22 @@ func runSkillDisable(_ context.Context, s streams, g globals, args []string) err
 	return nil
 }
 
-// personalSkillArgs parses `skill enable|disable <name>...` and loads the
-// home repo. home is nil when only help was printed.
-func personalSkillArgs(s streams, g globals, args []string, verb string) ([]string, *config.Home, error) {
-	fs := newFlagSet("skill " + verb)
+// personalNameArgs parses `<group> enable|disable <name>...`, such as
+// `skill enable pdf`, and loads the home repo. home is nil when only help
+// was printed.
+func personalNameArgs(s streams, g globals, args []string, group string, verb string) ([]string, *config.Home, error) {
+	command := group + " " + verb
+	fs := newFlagSet(command)
 	names, help, err := parseArgs(fs, args)
 	if err != nil {
 		return nil, nil, err
 	}
 	if help {
-		fmt.Fprintf(s.out, "usage: %s skill %s <name>...\n", brand.Name, verb)
+		fmt.Fprintf(s.out, "usage: %s %s <name>...\n", brand.Name, command)
 		return nil, nil, nil
 	}
 	if len(names) == 0 {
-		return nil, nil, apperr.New(apperr.Usage, "skill %s takes at least one name", verb)
+		return nil, nil, apperr.New(apperr.Usage, "%s takes at least one name", command)
 	}
 	home, err := loadHome(s, g)
 	if err != nil {
@@ -367,6 +370,12 @@ func runSkillSync(ctx context.Context, s streams, g globals, args []string) erro
 	if err != nil || home == nil {
 		return err
 	}
+	return syncSkills(ctx, s, home, git, cat)
+}
+
+// syncSkills settles the protocol when a clone needs it, then installs and
+// links the chosen skills and prints the summary.
+func syncSkills(ctx context.Context, s streams, home *config.Home, git *gitx.Git, cat skill.Catalog) error {
 	urls, err := skill.CloneURLs(ctx, git, home, cat)
 	if err != nil {
 		return err
@@ -438,13 +447,22 @@ func skillCommand(ctx context.Context, s streams, g globals, args []string, verb
 	if err != nil {
 		return nil, nil, skill.Catalog{}, err
 	}
-	git, err := gitx.New(ctx)
-	if err != nil {
-		return nil, nil, skill.Catalog{}, err
-	}
-	cat, err := skill.Discover(home)
+	git, cat, err := skillTools(ctx, home)
 	if err != nil {
 		return nil, nil, skill.Catalog{}, err
 	}
 	return home, git, cat, nil
+}
+
+// skillTools finds git and the skills home offers.
+func skillTools(ctx context.Context, home *config.Home) (*gitx.Git, skill.Catalog, error) {
+	git, err := gitx.New(ctx)
+	if err != nil {
+		return nil, skill.Catalog{}, err
+	}
+	cat, err := skill.Discover(home)
+	if err != nil {
+		return nil, skill.Catalog{}, err
+	}
+	return git, cat, nil
 }

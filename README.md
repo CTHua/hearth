@@ -30,7 +30,7 @@ hearth config protocol https                  # 個人設定，寫進 hearth.loc
 hearth clone                                  # clone 還沒 clone 的產品
 hearth repo list                              # 每個產品的狀態：ok、missing、remote-mismatch、path-conflict
 hearth repo fix-remote                        # origin 只差協定時改成預期的 URL
-hearth doctor                                 # 檢查 git、設定檔、標記區段、每個 checkout 和選到的 skill
+hearth doctor                                 # 檢查 git、設定檔、標記區段、每個 checkout、選到的 skill 和 MCP server
 ```
 
 skill：
@@ -46,11 +46,29 @@ hearth skill sync                             # clone 到 vendor/skills/、寫�
 hearth skill list                             # 只讀、不連網
 ```
 
+MCP server：
+
+```sh
+hearth mcp add docs --env-var DOCS_TOKEN -- npx -y @acme/docs-mcp           # stdio；團隊檔
+hearth mcp add tracker --url https://mcp.example.invalid/mcp \
+  --bearer-token-env TRACKER_TOKEN --header-env 'X-Workspace=TRACKER_WORKSPACE'  # http；團隊檔
+hearth mcp remove tracker                     # 只改團隊檔
+hearth mcp enable docs                        # 個人檔
+hearth mcp disable docs                       # 也能清掉已被移除的名稱
+hearth mcp sync [--force]                     # 照選的 agent 寫 .mcp.json（claude）、.codex/config.toml（codex）
+hearth mcp list                               # 只讀；列出缺的環境變數名稱
+hearth sync [--force]                         # skill sync 再 mcp sync；--force 只給 MCP
+```
+
+- 秘密只能寫環境變數名稱（`env_vars`、`bearer_token_env`、`header_envs`），沒有地方放值。
+- 產生的檔案的 SHA-256 記在 `.hearth/state.json`；被手改過的檔 `sync` 不覆寫、不刪，報 `generated-modified`、exit 1，其他檔照常更新；`--force` 才覆寫。
+- 環境變數沒設、`command` 不在 PATH 時，`sync` 和 `doctor` 只警告（`env-missing`），只印名稱。
+
 - 所有指令從目前目錄往上找 `hearth.toml` 決定根目錄，也可以用 `-C <dir>`。
 - protocol 沒設時，`hearth clone` 和沒給 `--branch` 的 `hearth repo add` 會實際用 `git ls-remote` 試 ssh 再試 https，把結果寫進 `hearth.local.toml`。
 - 給了 `--commit` 的 `skill add`、`skill update` 不連網，protocol 沒設也不偵測；偵測延到 `skill sync`。
 - `agent-missing`（agent CLI 不在 PATH）只是警告，不影響 exit code。
-- exit code：0 成功；1 有產品或 skill 失敗；2 設定、用法、環境或版本錯誤；130 中斷。
+- exit code：0 成功；1 有產品、skill 或產生的檔案失敗；2 設定、用法、環境或版本錯誤；130 中斷。
 - 錯誤格式：`error [<類別>] <說明>`，跟單一產品有關的是 `error [<類別>] <name>: <說明>`。
 
 產生的 Home Repo 的 README 有完整的規則和錯誤類別說明，來源在 [`template/home/README.md`](template/home/README.md)。

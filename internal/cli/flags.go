@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"strings"
 
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
@@ -45,6 +46,19 @@ func parseArgs(fs *flag.FlagSet, args []string) (positional []string, help bool,
 		positional = append(positional, rest[0])
 		args = rest[1:]
 	}
+}
+
+// listFlag collects every value of a flag that may be repeated, in the
+// order given; flag.String would keep only the last.
+type listFlag []string
+
+func (l *listFlag) String() string {
+	return strings.Join(*l, listSep)
+}
+
+func (l *listFlag) Set(value string) error {
+	*l = append(*l, value)
+	return nil
 }
 
 // setFlags reports which flags were given on the command line, so an empty
