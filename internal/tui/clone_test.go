@@ -64,7 +64,7 @@ func TestCancelledCloneLeavesNoTempDir(t *testing.T) {
 	t.Cleanup(func() { gittest.Git(t, "", "config", "--global", "--unset", "protocol.ssh.allow") })
 
 	m := tui.New(ctx, service)
-	cmd := press(m, "c")
+	cmd := press(m, "2", "c")
 	done := make(chan tea.Msg)
 	go func() { done <- cmd() }()
 	deadline := time.Now().Add(startTimeout)

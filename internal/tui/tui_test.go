@@ -41,10 +41,16 @@ type fake struct {
 	loads   int
 	// enableErr is what EnableSkills returns; cloneFail lists repos Clone fails.
 	enableErr error
+	// mcpErr is what AddMCP returns.
+	mcpErr error
+	// changes and changesErr are what TeamChanges returns.
+	changes    []core.TeamChange
+	changesErr error
 	// syncTail makes Sync print MCP lines after the skill summary.
 	syncTail  bool
 	cloneFail []string
-	// block makes Clone wait for its context; started is closed once it does.
+	// block makes Clone and UpdateSkill wait for their context; started is
+	// closed once they do.
 	block   bool
 	started chan struct{}
 }
@@ -54,6 +60,11 @@ func newFake() *fake {
 	f := &fake{started: make(chan struct{})}
 	f.home.Team.Repos = repos
 	f.home.Personal.Agents = []string{config.AgentClaude}
+	f.home.Team.Skills = []config.Skill{{Name: "pdf", URL: skillURL, Commit: "0123456789abcdef", Subdir: "pdf"}}
+	f.home.Team.MCP = []config.MCP{
+		{Name: "docs", Transport: config.TransportStdio, Command: "npx", Args: []string{"-y", "@acme/docs-mcp"}},
+		{Name: "tracker", Transport: config.TransportHTTP, URL: "https://mcp.example.invalid/mcp"},
+	}
 	for _, repo := range repos {
 		f.repos = append(f.repos, core.RepoRow{Repo: repo, Status: checkout.Status{State: checkout.Missing}})
 	}
@@ -155,6 +166,22 @@ func (f *fake) AddSkill(_ context.Context, p core.AddSkillParams) (core.AddSkill
 	return core.AddSkillResult{Skill: config.Skill{Name: "skills", Commit: "abc", Subdir: "."}}, nil
 }
 
+func (f *fake) RemoveSkill(name string) (core.RemoveSkillResult, error) {
+	f.record("RemoveSkill %s", name)
+	return core.RemoveSkillResult{Name: name}, nil
+}
+
+func (f *fake) UpdateSkill(ctx context.Context, name string, commit *string) (core.UpdateSkillResult, error) {
+	f.record("UpdateSkill %s commit=%s", name, show(commit))
+	result := core.UpdateSkillResult{Name: name, From: "abc", To: "def"}
+	if f.block {
+		close(f.started)
+		<-ctx.Done()
+		return result, ctx.Err()
+	}
+	return result, nil
+}
+
 func (f *fake) ListSkills(context.Context) ([]skill.Row, error) {
 	return f.skills, nil
 }
@@ -162,6 +189,20 @@ func (f *fake) ListSkills(context.Context) ([]skill.Row, error) {
 func (f *fake) SyncSkills(context.Context, core.Output) (core.BatchResult, error) {
 	f.record("SyncSkills")
 	return core.BatchResult{}, nil
+}
+
+func (f *fake) AddMCP(server config.MCP) error {
+	f.record("AddMCP %s transport=%s command=%s args=%q url=%s env=%q", server.Name, server.Transport, server.Command, server.Args, server.URL, server.EnvVars)
+	return f.mcpErr
+}
+
+func (f *fake) RemoveMCP(name string) (config.MCP, error) {
+	f.record("RemoveMCP %s", name)
+	return config.MCP{Name: name}, nil
+}
+
+func (f *fake) TeamChanges(context.Context) ([]core.TeamChange, error) {
+	return f.changes, f.changesErr
 }
 
 func (f *fake) EnableMCP(names []string) ([]string, error) {
@@ -260,7 +301,7 @@ func newModel(f *fake) *tui.Model {
 func TestRepoAddWithBranchRunsNowAndShowsHint(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "a")
+	press(m, "2", "a")
 	typeText(m, newURL)
 	press(m, "tab")
 	typeText(m, "new")
@@ -276,7 +317,7 @@ func TestRepoAddWithBranchRunsNowAndShowsHint(t *testing.T) {
 func TestRepoAddWithoutBranchRunsInBackground(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "a")
+	press(m, "2", "a")
 	typeText(m, newURL)
 	cmd := press(m, "enter")
 	expectScreen(t, m, "running: repo add")
@@ -293,7 +334,7 @@ func TestRepoAddWithoutBranchRunsInBackground(t *testing.T) {
 func TestRepoAddNeedsURL(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "a", "enter")
+	press(m, "2", "a", "enter")
 	expectCalls(t, f)
 	expectScreen(t, m, "the URL is required")
 }
@@ -301,7 +342,7 @@ func TestRepoAddNeedsURL(t *testing.T) {
 func TestRepoRemoveNeedsTwoPresses(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "d")
+	press(m, "2", "d")
 	expectCalls(t, f)
 	expectScreen(t, m, "press d again to remove app")
 	press(m, "j")
@@ -319,7 +360,7 @@ func TestRepoRemoveNeedsTwoPresses(t *testing.T) {
 func TestCloneAndFixRemote(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	cmd := press(m, "c")
+	cmd := press(m, "2", "c")
 	expectScreen(t, m, "running: clone")
 	finish(t, m, cmd)
 	expectCalls(t, f, "Clone []")
@@ -332,7 +373,7 @@ func TestCloneAndFixRemote(t *testing.T) {
 func TestProtocolChoices(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "2", "enter")
+	press(m, "1", "enter")
 	press(m, "down", "space")
 	expectCalls(t, f, "SetProtocol ssh", "SetProtocol https")
 	expectScreen(t, m, "protocol: https (saved to "+brand.LocalFile+")")
@@ -346,7 +387,7 @@ func TestDetectWithoutReposIsDisabled(t *testing.T) {
 	f.home.Team.Repos = nil
 	f.repos = nil
 	m := newModel(f)
-	if cmd := press(m, "2", "down", "down", "enter"); cmd != nil {
+	if cmd := press(m, "1", "down", "down", "enter"); cmd != nil {
 		t.Error("detection started without repos")
 	}
 	expectCalls(t, f)
@@ -356,7 +397,8 @@ func TestDetectWithoutReposIsDisabled(t *testing.T) {
 func TestSkillsTab(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "3", "space")
+	// Agents and skills are on Mine, under the three protocol rows.
+	press(m, "1", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "SetAgents []", "SetAgents [codex]")
 	press(m, "down", "space")
@@ -365,9 +407,11 @@ func TestSkillsTab(t *testing.T) {
 	press(m, "down", "space")
 	expectCalls(t, f)
 	expectScreen(t, m, "the built-in skill is installed whenever an agent is chosen")
+	// s on Mine is the top-level sync; skill sync has no key of its own.
 	finish(t, m, press(m, "s"))
-	expectCalls(t, f, "SyncSkills")
-	press(m, "a")
+	expectCalls(t, f, "Sync force=false")
+	// Adding an external skill is on the team Skills tab.
+	press(m, "3", "a")
 	typeText(m, skillURL)
 	press(m, "tab", "tab")
 	typeText(m, "pdf")
@@ -381,7 +425,9 @@ func TestSkillsTab(t *testing.T) {
 func TestMCPTab(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "4", "space")
+	// Servers are the last rows of Mine: 3 protocol, 2 agent and 3 skill rows
+	// come first.
+	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "EnableMCP [docs]", "DisableMCP [tracker]")
 	finish(t, m, press(m, "s"))
@@ -400,7 +446,7 @@ func TestCtrlCCancelsRunningActionThenQuits(t *testing.T) {
 	f := newFake()
 	f.block = true
 	m := newModel(f)
-	cmd := press(m, "c")
+	cmd := press(m, "2", "c")
 	done := make(chan tea.Msg)
 	go func() { done <- cmd() }()
 	<-f.started
@@ -433,19 +479,35 @@ func TestViewFitsTerminal(t *testing.T) {
 	long := strings.Repeat("very-long-detail-", 10)
 	f.repos[0].Status.Detail = long
 	f.skills[0].Detail = long
-	for _, size := range [][2]int{{80, 24}, {40, 24}} {
+	f.servers[0].MissingEnv = []string{strings.Repeat("LONG_NAME_", 12)}
+	f.changes = []core.TeamChange{{Table: core.TableRepos, Name: long, Kind: core.Removed}}
+	for _, size := range [][2]int{{80, 24}, {100, 30}, {200, 50}} {
 		m := newModel(f)
 		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		screens := map[string]func(){
-			"repos":    func() { press(m, "1") },
-			"protocol": func() { press(m, "2") },
-			"skills":   func() { press(m, "3", "down", "down", "down", "down") },
-			"mcp":      func() { press(m, "4") },
-			"form":     func() { press(m, "1", "a"); typeText(m, long) },
+			"mine":       func() { press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "down") },
+			"repos":      func() { press(m, "2") },
+			"skills":     func() { press(m, "3") },
+			"mcp":        func() { press(m, "4") },
+			"repo form":  func() { press(m, "2", "a"); typeText(m, long) },
+			"skill form": func() { press(m, "3", "a"); typeText(m, long) },
+			"mcp form": func() {
+				press(m, "4", "a")
+				typeText(m, long)
+				press(m, "tab", "tab")
+				typeText(m, long)
+				press(m, "enter")
+			},
+			"keys":     func() { press(m, "?") },
+			"messages": func() { finish(t, m, press(m, "1", "s")) },
 		}
 		for name, open := range screens {
 			open()
-			for i, line := range strings.Split(m.View().Content, "\n") {
+			lines := strings.Split(m.View().Content, "\n")
+			if len(lines) > size[1] {
+				t.Errorf("%dx%d %s has %d lines", size[0], size[1], name, len(lines))
+			}
+			for i, line := range lines {
 				if width := lipgloss.Width(line); width > size[0] {
 					t.Errorf("%dx%d %s line %d is %d wide: %q", size[0], size[1], name, i, width, line)
 				}
@@ -455,11 +517,34 @@ func TestViewFitsTerminal(t *testing.T) {
 	}
 }
 
+func TestSmallTerminalShowsOnlyAHint(t *testing.T) {
+	m := newModel(newFake())
+	for _, size := range [][2]int{{79, 24}, {80, 23}, {40, 10}, {1, 1}, {0, 0}} {
+		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		text := screen(m)
+		if size[0] >= 40 {
+			if !strings.Contains(text, fmt.Sprintf("this terminal is %d×%d", size[0], size[1])) || !strings.Contains(text, "needs at least 80×24") {
+				t.Errorf("%dx%d:\n%s", size[0], size[1], text)
+			}
+			if strings.Contains(text, "Repos") {
+				t.Errorf("%dx%d drew the tabs:\n%s", size[0], size[1], text)
+			}
+		}
+		for i, line := range strings.Split(m.View().Content, "\n") {
+			if width := lipgloss.Width(line); width > max(1, size[0]) {
+				t.Errorf("%dx%d line %d is %d wide", size[0], size[1], i, width)
+			}
+		}
+	}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	expectScreen(t, m, "Repos", "MINE · "+brand.LocalFile)
+}
+
 func TestFailedActionShowsNoSuccessLine(t *testing.T) {
 	f := newFake()
 	f.enableErr = apperr.New(apperr.Usage, "cannot enable pdf")
 	m := newModel(f)
-	press(m, "3", "down", "down", "space")
+	press(m, "1", "down", "down", "down", "down", "down", "space")
 	expectCalls(t, f, "EnableSkills [pdf]")
 	expectScreen(t, m, "cannot enable pdf")
 	if text := screen(m); strings.Contains(text, "enabled:") {
@@ -472,14 +557,14 @@ func TestManyFailuresKeepTheSummary(t *testing.T) {
 	f.cloneFail = []string{"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"}
 	m := newModel(f)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	finish(t, m, press(m, "c"))
+	finish(t, m, press(m, "2", "c"))
 	expectScreen(t, m, "Summary: 0 cloned, 0 skipped, 8 failed")
 }
 
 func TestPasteDropsLineBreaks(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	press(m, "a")
+	press(m, "2", "a")
 	m.Update(tea.PasteMsg{Content: newURL[:20] + "\r\n" + newURL[20:]})
 	press(m, "tab", "tab", "tab")
 	typeText(m, "main")
@@ -492,6 +577,6 @@ func TestSyncKeepsTheSkillSummary(t *testing.T) {
 	f.syncTail = true
 	m := newModel(f)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	finish(t, m, press(m, "4", "s"))
+	finish(t, m, press(m, "1", "s"))
 	expectScreen(t, m, core.SummaryPrefix+"0 installed", "removed .codex/config.toml")
 }

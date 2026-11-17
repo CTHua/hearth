@@ -1,5 +1,6 @@
-// Package tui is the terminal UI: four tabs over core.Actions. It holds no
-// logic of its own beyond choosing which action to call.
+// Package tui is the terminal UI: a personal tab and three team tabs over
+// core.Actions. It holds no logic of its own beyond choosing which action
+// to call.
 package tui
 
 import (
@@ -17,7 +18,6 @@ import (
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
 	"github.com/CTHua/hearth/internal/core"
-	"github.com/CTHua/hearth/internal/giturl"
 	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/skill"
 )
@@ -27,20 +27,21 @@ type tab int
 // summaryIndent starts each group line under a summary.
 const summaryIndent = "  "
 
+// Mine edits the personal file; the tabs from tabRepos on edit the team file.
 const (
-	tabRepos tab = iota
-	tabProtocol
+	tabMine tab = iota
+	tabRepos
 	tabSkills
 	tabMCP
 	tabCount
 )
 
-var tabNames = [tabCount]string{"Repos", "Protocol", "Skills", "MCP"}
+var tabNames = [tabCount]string{"Mine", "Repos", "Skills", "MCP"}
 
 // firstTabKey is the digit of the first tab in keys.Tabs.
 const firstTabKey = '1'
 
-// Protocol tab rows.
+// Protocol rows at the top of Mine.
 const (
 	optionSSH = iota
 	optionHTTPS
@@ -48,8 +49,8 @@ const (
 	optionCount
 )
 
-// agentRows is how many rows the agent checkboxes take at the top of the
-// Skills tab, one per agent.
+// agentRows is how many rows the agent checkboxes take on Mine, one per
+// agent, right under the protocol rows.
 var agentRows = len(config.Agents())
 
 const (
@@ -59,23 +60,23 @@ const (
 	msgDone        = "done: %s"
 	msgConfirm     = "press d again to remove %s from %s; any other key keeps it"
 	msgBuiltin     = "the built-in skill is installed whenever an agent is chosen; it cannot be toggled"
-	msgURLRequired = "the URL is required; nothing was added"
-	msgFormClosed  = "nothing was added"
+	msgURLRequired = "the URL is required"
+	msgFormClosed  = "closed the form; nothing was saved"
 	msgNothing     = "nothing selected"
 )
 
 // Job labels, shown while a background action runs.
 const (
-	jobClone      = "clone"
-	jobFixRemote  = "fix-remote"
-	jobDetect     = "protocol detection"
-	jobSkillSync  = "skill sync"
-	jobSync       = "sync"
-	jobSkillAdd   = "skill add"
-	jobRepoAdd    = "repo add"
-	problemError  = "error ["
-	problemWarn   = "warning ["
-	lineSeparator = "\n"
+	jobClone       = "clone"
+	jobFixRemote   = "fix-remote"
+	jobDetect      = "protocol detection"
+	jobSync        = "sync"
+	jobSkillAdd    = "skill add"
+	jobSkillUpdate = "skill update"
+	jobRepoAdd     = "repo add"
+	problemError   = "error ["
+	problemWarn    = "warning ["
+	lineSeparator  = "\n"
 )
 
 // snapshot is what the screen shows, read after every action.
@@ -84,6 +85,8 @@ type snapshot struct {
 	repos   []core.RepoRow
 	skills  []skill.Row
 	servers []mcp.Row
+	// changes are the team-file entries that differ from HEAD.
+	changes []core.TeamChange
 	// problems are listing errors, shown above the tab's content.
 	problems []string
 }
@@ -100,6 +103,11 @@ func load(ctx context.Context, actions core.Actions) snapshot {
 		snap.problems = append(snap.problems, reportLines(err)...)
 	}
 	snap.skills = skills
+	changes, err := actions.TeamChanges(ctx)
+	if err != nil {
+		snap.problems = append(snap.problems, reportLines(err)...)
+	}
+	snap.changes = changes
 	return snap
 }
 
@@ -130,6 +138,7 @@ type Model struct {
 	width         int
 	height        int
 	form          *form
+	showKeys      bool
 	pendingRemove string
 	job           *job
 	messages      []string
@@ -186,6 +195,10 @@ func (m *Model) key(msg tea.KeyPressMsg) tea.Cmd {
 	if m.form != nil {
 		return m.formKey(msg)
 	}
+	if m.showKeys {
+		m.showKeys = !key.Matches(msg, keys.Help, keys.Cancel)
+		return nil
+	}
 	confirm := m.pendingRemove
 	m.pendingRemove = ""
 	// Any key but a second d drops the question; the second d replaces it.
@@ -193,6 +206,9 @@ func (m *Model) key(msg tea.KeyPressMsg) tea.Cmd {
 		m.messages = nil
 	}
 	switch {
+	case key.Matches(msg, keys.Help):
+		m.showKeys = true
+		return nil
 	case key.Matches(msg, keys.Tabs):
 		m.tab = tab(msg.String()[0] - firstTabKey)
 		return nil
@@ -216,14 +232,14 @@ func (m *Model) key(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 	switch m.tab {
+	case tabMine:
+		return m.mineKey(msg)
 	case tabRepos:
 		return m.reposKey(msg, confirm)
-	case tabProtocol:
-		return m.protocolKey(msg)
 	case tabSkills:
-		return m.skillsKey(msg)
+		return m.skillsKey(msg, confirm)
 	}
-	return m.mcpKey(msg)
+	return m.mcpKey(msg, confirm)
 }
 
 // interrupt cancels the running action and stays on screen until it ends;
@@ -251,14 +267,14 @@ func (m *Model) busy() bool {
 
 func (m *Model) rowCount(t tab) int {
 	switch t {
+	case tabMine:
+		return optionCount + agentRows + len(m.snap.skills) + len(m.snap.servers)
 	case tabRepos:
 		return len(m.snap.repos)
-	case tabProtocol:
-		return optionCount
 	case tabSkills:
-		return agentRows + len(m.snap.skills)
+		return len(m.snap.home.Team.Skills)
 	}
-	return len(m.snap.servers)
+	return len(m.snap.home.Team.MCP)
 }
 
 func (m *Model) move(delta int) {
@@ -278,206 +294,26 @@ func (m *Model) selected() (int, bool) {
 	return m.cursor[m.tab], m.rowCount(m.tab) > 0
 }
 
-func (m *Model) reposKey(msg tea.KeyPressMsg, confirm string) tea.Cmd {
-	switch {
-	case key.Matches(msg, keys.Add):
-		return m.openForm(repoForm(), m.submitRepo)
-	case key.Matches(msg, keys.Clone):
-		return m.start(jobClone, func(ctx context.Context, out core.Output) ([]string, bool, error) {
-			_, err := m.actions.Clone(ctx, nil, out)
-			return nil, false, err
-		})
-	}
-	fix := key.Matches(msg, keys.Fix)
-	if !fix && !key.Matches(msg, keys.Remove) {
-		return nil
-	}
+// selectedName is the name on the cursor row of a team tab; with no rows it
+// tells the user so.
+func (m *Model) selectedName(names []string) (string, bool) {
 	row, ok := m.selected()
 	if !ok {
 		m.messages = []string{msgNothing}
-		return nil
+		return "", false
 	}
-	name := m.snap.repos[row].Repo.Name
-	if fix {
-		return m.start(jobFixRemote, func(ctx context.Context, out core.Output) ([]string, bool, error) {
-			_, err := m.actions.FixRemote(ctx, []string{name}, out)
-			return nil, false, err
-		})
-	}
+	return names[row], true
+}
+
+// confirmRemove asks for a second d before removing name; it reports
+// whether this press is that second d and nothing else runs.
+func (m *Model) confirmRemove(name string, confirm string) bool {
 	if confirm != name {
 		m.pendingRemove = name
 		m.messages = []string{fmt.Sprintf(msgConfirm, name, brand.TeamFile)}
-		return nil
+		return false
 	}
-	if m.busy() {
-		return nil
-	}
-	result, err := m.actions.RemoveRepo(name)
-	lines := []string{fmt.Sprintf("removed %s from %s", name, brand.TeamFile)}
-	if result.CheckoutKept {
-		lines = append(lines, fmt.Sprintf("the checkout at %s was not touched", result.Repo.Path))
-	}
-	m.finishNow(onSuccess(lines, err), true, err)
-	return nil
-}
-
-func (m *Model) submitRepo(values []string) tea.Cmd {
-	url := strings.TrimSpace(values[0])
-	if url == "" {
-		m.messages = []string{msgURLRequired}
-		return nil
-	}
-	params := core.AddRepoParams{URL: url, Name: optional(values[1]), Path: optional(values[2]), Branch: optional(values[3])}
-	add := func(ctx context.Context) ([]string, error) {
-		result, err := m.actions.AddRepo(ctx, params)
-		lines := detectedLines(result.DetectedProtocol)
-		if err == nil {
-			lines = append(lines, fmt.Sprintf("added %s -> %s (%s)", result.Repo.Name, result.Repo.Path, result.Repo.Branch))
-		}
-		return lines, err
-	}
-	// Without a branch the remote is asked for one, which may take a while.
-	if params.Branch == nil {
-		return m.start(jobRepoAdd, func(ctx context.Context, _ core.Output) ([]string, bool, error) {
-			lines, err := add(ctx)
-			return lines, true, err
-		})
-	}
-	if m.busy() {
-		return nil
-	}
-	lines, err := add(m.ctx)
-	m.finishNow(lines, true, err)
-	return nil
-}
-
-func (m *Model) protocolKey(msg tea.KeyPressMsg) tea.Cmd {
-	if !key.Matches(msg, keys.Choose) {
-		return nil
-	}
-	option, _ := m.selected()
-	if option == optionDetect {
-		if len(m.snap.home.Team.Repos) == 0 {
-			m.messages = []string{core.ErrNoRepos.Message}
-			return nil
-		}
-		return m.start(jobDetect, func(ctx context.Context, _ core.Output) ([]string, bool, error) {
-			protocol, err := m.actions.DetectProtocol(ctx)
-			return detectedLines(protocol), false, err
-		})
-	}
-	if m.busy() {
-		return nil
-	}
-	protocol := giturl.SSH
-	if option == optionHTTPS {
-		protocol = giturl.HTTPS
-	}
-	err := m.actions.SetProtocol(protocol)
-	m.finishNow(onSuccess([]string{fmt.Sprintf("protocol: %s (saved to %s)", protocol, brand.LocalFile)}, err), false, err)
-	return nil
-}
-
-func (m *Model) skillsKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch {
-	case key.Matches(msg, keys.AddSkill):
-		return m.openForm(skillForm(), m.submitSkill)
-	case key.Matches(msg, keys.SkillSync):
-		return m.start(jobSkillSync, func(ctx context.Context, out core.Output) ([]string, bool, error) {
-			_, err := m.actions.SyncSkills(ctx, out)
-			return nil, false, err
-		})
-	case !key.Matches(msg, keys.Toggle):
-		return nil
-	}
-	row, _ := m.selected()
-	if row < agentRows {
-		if m.busy() {
-			return nil
-		}
-		agents := toggled(m.snap.home.Personal.Agents, config.Agents()[row])
-		err := m.actions.SetAgents(agents)
-		m.finishNow(onSuccess([]string{fmt.Sprintf("agents: %s (saved to %s)", core.LabelList(agents), brand.LocalFile)}, err), false, err)
-		return nil
-	}
-	item := m.snap.skills[row-agentRows]
-	if item.Source == skill.Builtin {
-		m.messages = []string{msgBuiltin}
-		return nil
-	}
-	if m.busy() {
-		return nil
-	}
-	m.toggleChoice(item.Name, item.Enabled, m.actions.EnableSkills, m.actions.DisableSkills)
-	return nil
-}
-
-func (m *Model) submitSkill(values []string) tea.Cmd {
-	url := strings.TrimSpace(values[0])
-	if url == "" {
-		m.messages = []string{msgURLRequired}
-		return nil
-	}
-	params := core.AddSkillParams{URL: url, Name: optional(values[1]), Subdir: optional(values[2]), Commit: optional(values[3])}
-	return m.start(jobSkillAdd, func(ctx context.Context, _ core.Output) ([]string, bool, error) {
-		result, err := m.actions.AddSkill(ctx, params)
-		lines := detectedLines(result.DetectedProtocol)
-		if err == nil {
-			entry := result.Skill
-			lines = append(lines, fmt.Sprintf("added skill %s at %s (subdir %s)", entry.Name, entry.Commit, entry.Subdir))
-		}
-		return lines, true, err
-	})
-}
-
-func (m *Model) mcpKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch {
-	case key.Matches(msg, keys.Sync):
-		return m.start(jobSync, func(ctx context.Context, out core.Output) ([]string, bool, error) {
-			_, err := m.actions.Sync(ctx, false, out)
-			return nil, false, err
-		})
-	case !key.Matches(msg, keys.Toggle):
-		return nil
-	}
-	row, ok := m.selected()
-	if !ok {
-		m.messages = []string{msgNothing}
-		return nil
-	}
-	if m.busy() {
-		return nil
-	}
-	server := m.snap.servers[row]
-	// A stale choice counts as enabled: toggling it removes it.
-	m.toggleChoice(server.Name, server.Enabled || server.Stale, m.actions.EnableMCP, m.actions.DisableMCP)
-	return nil
-}
-
-// toggleChoice enables or disables one personal choice.
-func (m *Model) toggleChoice(name string, enabled bool, enable func([]string) ([]string, error), disable func([]string) ([]string, error)) {
-	if enabled {
-		removed, err := disable([]string{name})
-		m.finishNow(onSuccess([]string{fmt.Sprintf("disabled: %s (saved to %s)", core.LabelList(removed), brand.LocalFile)}, err), false, err)
-		return
-	}
-	added, err := enable([]string{name})
-	m.finishNow(onSuccess([]string{fmt.Sprintf("enabled: %s (saved to %s)", core.LabelList(added), brand.LocalFile)}, err), false, err)
-}
-
-// toggled returns the known agents in their usual order, with agent flipped.
-func toggled(current []string, agent string) []string {
-	var next []string
-	for _, known := range config.Agents() {
-		on := slices.Contains(current, known)
-		if known == agent {
-			on = !on
-		}
-		if on {
-			next = append(next, known)
-		}
-	}
-	return next
+	return !m.busy()
 }
 
 // finishNow shows the outcome of an action that ran in Update and reloads.

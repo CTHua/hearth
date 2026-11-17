@@ -67,6 +67,13 @@ hearth sync [--force]                         # skill sync 再 mcp sync；--forc
 - 產生的檔案的 SHA-256 記在 `.hearth/state.json`；被手改過的檔 `sync` 不覆寫、不刪，報 `generated-modified`、exit 1，其他檔照常更新；`--force` 才覆寫。
 - 環境變數沒設、`command` 不在 PATH 時，`sync` 和 `doctor` 只警告（`env-missing`），只印名稱。
 
+TUI（`hearth` 或 `hearth ui`）：
+
+- Mine 分頁改 `hearth.local.toml`：protocol、agent、每個 skill 和 MCP server 的開關，`s` 跑 `hearth sync`。
+- team 分頁（Repos、Skills、MCP）改 `hearth.toml`：`a` 新增、`d` 按兩次移除；Skills 只列 external skill，`u` 換 pin。新增 MCP server 的表單只收 command、url、env vars；http 的 token、header 用 CLI。
+- team 分頁的頁首列出 `hearth.toml` 跟 HEAD 比的改動數和被移除的名字，有改動的列標 `+`（新增）或 `~`（內容不同）。
+- `?` 開快捷鍵表；終端機小於 80×24 時只顯示放大視窗的提示。
+
 - `hearth upgrade` 只改標記之間的內容和設定檔的 `schema_version`，標記外逐 byte 不變；標記區段被手改過也整段重寫。標記缺少、重複或順序錯時 exit 2、什麼都不寫。`hearth.local.toml` 不存在就跳過。`hearth doctor` 在標記區段跟目前版本不同時只警告。
 - 所有指令從目前目錄往上找 `hearth.toml` 決定根目錄，也可以用 `-C <dir>`。
 - protocol 沒設時，`hearth clone` 和沒給 `--branch` 的 `hearth repo add` 會實際用 `git ls-remote` 試 ssh 再試 https，把結果寫進 `hearth.local.toml`。

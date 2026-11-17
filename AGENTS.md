@@ -8,8 +8,8 @@
 | --- | --- |
 | `cmd/hearth/main.go` | 入口：判斷 stdin、stdout 是不是 TTY，交給 `internal/cli` |
 | `internal/cli` | 子指令和參數解析（標準庫 `flag`）：解析旗標 → 呼叫 `internal/core` → 印結果；沒參數時開 TUI 或印 help |
-| `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、sync），吃已載入的 home、回傳結構化結果；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
-| `internal/tui` | Bubble Tea v2 的 TUI（Repos、Protocol、Skills、MCP 四個分頁），只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
+| `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、sync），吃已載入的 home、回傳結構化結果；`TeamChanges` 比較 `hearth.toml` 跟 HEAD；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
+| `internal/tui` | Bubble Tea v2 的 TUI：Mine（個人檔）和 team 組的 Repos、Skills、MCP（團隊檔）四個分頁、置中表單、`?` 快捷鍵表，只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
 | `internal/upgrade` | `hearth upgrade`：重寫標記區段、照遷移鏈升級設定檔的 `schema_version`；鏈和目標版本是參數 |
 | `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`）的讀寫、驗證、版本 gate、根目錄搜尋 |
 | `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、`.hearth/state.json` 的 hash 判斷、環境變數和 PATH 檢查 |

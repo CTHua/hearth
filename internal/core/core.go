@@ -47,13 +47,19 @@ type Actions interface {
 	EnableSkills(names []string) ([]string, error)
 	DisableSkills(names []string) ([]string, error)
 	AddSkill(ctx context.Context, p AddSkillParams) (AddSkillResult, error)
+	RemoveSkill(name string) (RemoveSkillResult, error)
+	UpdateSkill(ctx context.Context, name string, commit *string) (UpdateSkillResult, error)
 	ListSkills(ctx context.Context) ([]skill.Row, error)
 	SyncSkills(ctx context.Context, out Output) (BatchResult, error)
 
+	AddMCP(server config.MCP) error
+	RemoveMCP(name string) (config.MCP, error)
 	EnableMCP(names []string) ([]string, error)
 	DisableMCP(names []string) ([]string, error)
 	ListMCP() []mcp.Row
 	Sync(ctx context.Context, force bool, out Output) (SyncResult, error)
+
+	TeamChanges(ctx context.Context) ([]TeamChange, error)
 }
 
 var _ Actions = (*Service)(nil)
