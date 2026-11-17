@@ -16,6 +16,7 @@ import (
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/checkout"
 	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/giturl"
 	"github.com/CTHua/hearth/internal/gitx"
 )
 
@@ -40,6 +41,20 @@ type Target struct {
 	URL string
 	// Protocol is the personal protocol URL was converted with, or empty.
 	Protocol string
+}
+
+// Targets converts each repo's team-file URL with protocol; a URL that does
+// not convert is a config error naming the repo.
+func Targets(repos []config.Repo, protocol string) ([]Target, error) {
+	targets := make([]Target, 0, len(repos))
+	for _, repo := range repos {
+		url, err := giturl.Expected(repo.URL, protocol)
+		if err != nil {
+			return nil, apperr.ForRepo(apperr.Config, repo.Name, "%v", err)
+		}
+		targets = append(targets, Target{Repo: repo, URL: url, Protocol: protocol})
+	}
+	return targets, nil
 }
 
 // One clones t into place when its path is free, or checks the checkout that

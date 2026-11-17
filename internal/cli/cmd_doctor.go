@@ -191,16 +191,20 @@ func checkConfig(report *doctorReport, g globals) *config.Home {
 }
 
 func checkMarkers(report *doctorReport, root string) {
-	problems := scaffold.CheckMarkers(root)
+	changes, problems := scaffold.SectionChanges(root)
 	if len(problems) > 0 {
 		report.setup(problems)
 		return
 	}
 	report.ok("marked sections in AGENTS.md and .gitignore")
+	// An outdated section is only a warning: the old one still works.
+	for _, change := range changes {
+		report.warn("%s: the marked section differs from this version of %s; run `%s upgrade`", change.File, brand.Name, brand.Name)
+	}
 }
 
 func checkRepos(ctx context.Context, report *doctorReport, git *gitx.Git, home *config.Home) error {
-	targets, err := cloneTargets(home.Team.Repos, home.Personal.Protocol)
+	targets, err := clone.Targets(home.Team.Repos, home.Personal.Protocol)
 	if err != nil {
 		report.setup(err)
 		return nil

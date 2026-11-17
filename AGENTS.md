@@ -6,8 +6,11 @@
 
 | 路徑 | 內容 |
 | --- | --- |
-| `cmd/hearth/main.go` | 入口，只做參數分派 |
-| `internal/cli` | 子指令和參數解析（標準庫 `flag`） |
+| `cmd/hearth/main.go` | 入口：判斷 stdin、stdout 是不是 TTY，交給 `internal/cli` |
+| `internal/cli` | 子指令和參數解析（標準庫 `flag`）：解析旗標 → 呼叫 `internal/core` → 印結果；沒參數時開 TUI 或印 help |
+| `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、sync），吃已載入的 home、回傳結構化結果；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
+| `internal/tui` | Bubble Tea v2 的 TUI（Repos、Protocol、Skills、MCP 四個分頁），只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
+| `internal/upgrade` | `hearth upgrade`：重寫標記區段、照遷移鏈升級設定檔的 `schema_version`；鏈和目標版本是參數 |
 | `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`）的讀寫、驗證、版本 gate、根目錄搜尋 |
 | `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、`.hearth/state.json` 的 hash 判斷、環境變數和 PATH 檢查 |
 | `internal/tomlstr` | 手寫 TOML 值（字串、陣列、inline table），給 encoder 無法保留順序的地方用 |
@@ -18,7 +21,7 @@
 | `internal/skill` | skill 的三種來源、狀態、detached-commit 的安裝和換 pin、各 agent 的 link；內建 skill 的 `SKILL.md` 在 `internal/skill/builtin/`（go:embed） |
 | `internal/dirswap` | 換掉非空目錄，中途失敗時把原本的搬回來 |
 | `internal/detect` | 用 `git ls-remote` 偵測 protocol |
-| `internal/scaffold` | `hearth init` 和標記區段檢查 |
+| `internal/scaffold` | `hearth init`、標記區段檢查，和標記區段跟模板的逐 byte 比對（`upgrade`、`doctor` 共用） |
 | `internal/apperr` | 錯誤類別、錯誤格式、exit code |
 | `internal/brand` | 所有含套件名稱的字串 |
 | `template/home/` | `hearth init` 寫出的 Home Repo 模板（go:embed） |
@@ -33,7 +36,7 @@
   ```
 
 - 測試只碰公開介面，不連網路。要用 git 的測試在 `TestMain` 呼叫 `gittest.Main`，遠端用 `gittest.BareRemote` 和 `gittest.Redirect`。
-- 相依只有 `github.com/BurntSushi/toml`。新增或升級相依先討論。
+- 相依只有 `github.com/BurntSushi/toml`、TUI 用的 Charm 套件（`charm.land/bubbletea/v2`、`charm.land/bubbles/v2`、`charm.land/lipgloss/v2`）和判斷 TTY 的 `github.com/charmbracelet/x/term`。新增或升級相依先討論。
 - 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。
   - 例外：第一次發布前只有開發者自己用（2026-11-17 定），P2 加的 `[[skills]]`、`agents`、`skills` 和 P3 加的 `[[mcp]]`、`mcp` 直接加進 `schema_version = 1`，不寫遷移。發布之後這條例外失效。
 - 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。

@@ -12,15 +12,20 @@ import (
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/version"
 )
 
-const usageText = `usage: %[1]s [-C <dir>] <command> [<args>]
+const usageText = `usage: %[1]s [-C <dir>] [<command> [<args>]]
 
 Manage a home repo: the team's list of product repos and skills in %[2]s,
 the product checkouts under products/, and the skills each person chooses.
+With no command, in a terminal inside a home repo, the terminal UI opens;
+otherwise this help is printed.
 
 commands:
+  ui                         open the terminal UI; stdin and stdout must be
+                             terminals
   init <dir>                 create a new home repo in a missing or empty <dir>
   clone [<name>...]          clone the listed repos that are not cloned yet
   repo add <url> [--name <name>] [--path <path>] [--branch <branch>]
@@ -59,6 +64,10 @@ commands:
                              show or set your agents in %[3]s
   doctor                     check git, both config files, every checkout,
                              every chosen skill and MCP server
+  upgrade [--check]          rewrite the marked sections of AGENTS.md and
+                             .gitignore and migrate both config files to
+                             this version; --check only lists what would
+                             change and exits 1 if anything would
   version                    print the version
   help                       show this help
 
@@ -66,8 +75,8 @@ options:
   -C <dir>  run as if started in <dir>; the home repo is the first directory
             at or above it that holds %[2]s
 
-exit codes: 0 ok, 1 some repo, skill or generated file failed, 2
-config/usage/env/version error, 130 interrupted
+exit codes: 0 ok, 1 some repo, skill or generated file failed, or upgrade
+--check found changes, 2 config/usage/env/version error, 130 interrupted
 `
 
 // streams bundles what a command writes to.
@@ -76,17 +85,26 @@ type streams struct {
 	err io.Writer
 }
 
-// globals are the options given before the command.
+// output is where core's batch actions stream their transcript.
+func (s streams) output() core.Output {
+	return core.Output{Out: s.out, Err: s.err}
+}
+
+// globals are the options given before the command, and whether the
+// process runs in a terminal.
 type globals struct {
-	dir string
+	dir      string
+	terminal bool
 }
 
 type command func(ctx context.Context, s streams, g globals, args []string) error
 
 // Run executes one command line and returns the process exit code.
-func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer) int {
+// terminal reports whether stdin and stdout are both terminals; only then
+// may the terminal UI open.
+func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer, terminal bool) int {
 	s := streams{out: stdout, err: stderr}
-	err := dispatch(ctx, s, args)
+	err := dispatch(ctx, s, args, terminal)
 	// An interrupt wins over whatever error the killed git child produced.
 	if ctx.Err() != nil {
 		err = ctx.Err()
@@ -94,7 +112,7 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	return apperr.Report(stderr, err)
 }
 
-func dispatch(ctx context.Context, s streams, args []string) error {
+func dispatch(ctx context.Context, s streams, args []string, terminal bool) error {
 	fs := newFlagSet("")
 	dir := fs.String("C", "", "")
 	help, err := parseGlobal(fs, args)
@@ -105,12 +123,14 @@ func dispatch(ctx context.Context, s streams, args []string) error {
 		printUsage(s.out)
 		return nil
 	}
+	g := globals{dir: *dir, terminal: terminal}
 	rest := fs.Args()
 	if len(rest) == 0 {
-		printUsage(s.err)
-		return apperr.New(apperr.Usage, "no command given")
+		return runDefault(ctx, s, g)
 	}
 	commands := map[string]command{
+		"ui":      runUI,
+		"upgrade": runUpgrade,
 		"init":    runInit,
 		"clone":   runClone,
 		"repo":    runRepo,
@@ -126,7 +146,7 @@ func dispatch(ctx context.Context, s streams, args []string) error {
 	if !found {
 		return apperr.New(apperr.Usage, "unknown command %q; see `%s help`", rest[0], brand.Name)
 	}
-	return run(ctx, s, globals{dir: *dir}, rest[1:])
+	return run(ctx, s, g, rest[1:])
 }
 
 func printUsage(w io.Writer) {
@@ -158,17 +178,27 @@ func startDir(g globals) (string, error) {
 	return cwd, nil
 }
 
-// loadHome finds the home repo and loads it through the version gate. Every
-// command except version, help and init goes through here before writing.
-func loadHome(s streams, g globals) (*config.Home, error) {
+// findRoot is the home repo the command runs in.
+func findRoot(g globals) (string, error) {
 	start, err := startDir(g)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	root, err := config.FindRoot(start)
+	return config.FindRoot(start)
+}
+
+// loadHome finds the home repo and loads it through the version gate. Every
+// command except version, help, init and upgrade goes through here before
+// writing.
+func loadHome(s streams, g globals) (*config.Home, error) {
+	root, err := findRoot(g)
 	if err != nil {
 		return nil, err
 	}
+	return loadRoot(s, root)
+}
+
+func loadRoot(s streams, root string) (*config.Home, error) {
 	home, err := config.Load(root, version.Current())
 	if err != nil {
 		return nil, err

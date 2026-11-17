@@ -68,3 +68,12 @@ func setFlags(fs *flag.FlagSet) map[string]bool {
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	return set
 }
+
+// givenValue returns value when the flag called name was given, even
+// empty, and nil when it was not, for the optional fields core takes.
+func givenValue(given map[string]bool, name string, value *string) *string {
+	if !given[name] {
+		return nil
+	}
+	return value
+}

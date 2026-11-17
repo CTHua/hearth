@@ -30,6 +30,9 @@ hearth config protocol https                  # 個人設定，寫進 hearth.loc
 hearth clone                                  # clone 還沒 clone 的產品
 hearth repo list                              # 每個產品的狀態：ok、missing、remote-mismatch、path-conflict
 hearth repo fix-remote                        # origin 只差協定時改成預期的 URL
+hearth                                        # 在終端機裡開 TUI；不是終端機或不在 Home Repo 時印 help、exit 0
+hearth ui                                     # 一定開 TUI；stdin、stdout 不是終端機時 exit 2
+hearth upgrade [--check]                      # 換新版 hearth 後更新 AGENTS.md、.gitignore 的標記區段和設定檔的 schema_version；--check 只列出、有要改時 exit 1
 hearth doctor                                 # 檢查 git、設定檔、標記區段、每個 checkout、選到的 skill 和 MCP server
 ```
 
@@ -64,6 +67,7 @@ hearth sync [--force]                         # skill sync 再 mcp sync；--forc
 - 產生的檔案的 SHA-256 記在 `.hearth/state.json`；被手改過的檔 `sync` 不覆寫、不刪，報 `generated-modified`、exit 1，其他檔照常更新；`--force` 才覆寫。
 - 環境變數沒設、`command` 不在 PATH 時，`sync` 和 `doctor` 只警告（`env-missing`），只印名稱。
 
+- `hearth upgrade` 只改標記之間的內容和設定檔的 `schema_version`，標記外逐 byte 不變；標記區段被手改過也整段重寫。標記缺少、重複或順序錯時 exit 2、什麼都不寫。`hearth.local.toml` 不存在就跳過。`hearth doctor` 在標記區段跟目前版本不同時只警告。
 - 所有指令從目前目錄往上找 `hearth.toml` 決定根目錄，也可以用 `-C <dir>`。
 - protocol 沒設時，`hearth clone` 和沒給 `--branch` 的 `hearth repo add` 會實際用 `git ls-remote` 試 ssh 再試 https，把結果寫進 `hearth.local.toml`。
 - 給了 `--commit` 的 `skill add`、`skill update` 不連網，protocol 沒設也不偵測；偵測延到 `skill sync`。

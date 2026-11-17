@@ -3,13 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/mcp"
 )
 
@@ -91,11 +91,7 @@ func runMCPAdd(_ context.Context, s streams, g globals, args []string) error {
 	if err != nil {
 		return err
 	}
-	team, err := home.Team.WithMCP(server)
-	if err != nil {
-		return entryProblems("add MCP server", err, nil)
-	}
-	if err := config.WriteTeam(home.Root, team); err != nil {
+	if err := core.New(home).AddMCP(server); err != nil {
 		return err
 	}
 	fmt.Fprintf(s.out, "added MCP server %s (%s)\n", server.Name, server.Transport)
@@ -159,12 +155,8 @@ func runMCPRemove(_ context.Context, s streams, g globals, args []string) error 
 	if err != nil {
 		return err
 	}
-	server, found := home.Team.FindMCP(positional[0])
-	if !found {
-		return apperr.New(apperr.Usage, "unknown MCP server %q in %s; servers: %s", positional[0], brand.TeamFile, labelList(home.Team.MCPNames()))
-	}
-	team, _ := home.Team.WithoutMCP(server.Name)
-	if err := config.WriteTeam(home.Root, team); err != nil {
+	server, err := core.New(home).RemoveMCP(positional[0])
+	if err != nil {
 		return err
 	}
 	fmt.Fprintf(s.out, "removed MCP server %s from %s; the next `%s sync` drops it from the generated files\n", server.Name, brand.TeamFile, brand.Name)
@@ -177,56 +169,21 @@ func runMCPEnable(_ context.Context, s streams, g globals, args []string) error 
 	if err != nil || home == nil {
 		return err
 	}
-	chosen := slices.Clone(home.Personal.MCP)
-	var refused []string
-	var added []string
-	for _, name := range names {
-		server, found := home.Team.FindMCP(name)
-		switch {
-		case !found:
-			refused = append(refused, name)
-		case !containsFold(chosen, server.Name):
-			chosen = append(chosen, server.Name)
-			added = append(added, server.Name)
-		}
-	}
-	if len(refused) > 0 {
-		return apperr.New(apperr.Usage, "cannot enable %s (no such MCP server); available: %s; %s is unchanged",
-			strings.Join(refused, listSep), labelList(home.Team.MCPNames()), brand.LocalFile)
-	}
-	if err := config.WritePersonal(home.Root, home.Personal.WithMCPChoices(chosen)); err != nil {
+	added, err := core.New(home).EnableMCP(names)
+	if err != nil {
 		return err
 	}
-	fmt.Fprintf(s.out, "enabled: %s (saved to %s); run `%s sync`\n", labelList(added), brand.LocalFile, brand.Name)
+	fmt.Fprintf(s.out, "enabled: %s (saved to %s); run `%s sync`\n", core.LabelList(added), brand.LocalFile, brand.Name)
 	return nil
 }
 
-// runMCPDisable also removes stale choices, names no server has any more,
-// which is why it does not look at the team file.
 func runMCPDisable(_ context.Context, s streams, g globals, args []string) error {
 	names, home, err := personalNameArgs(s, g, args, mcpGroup, "disable")
 	if err != nil || home == nil {
 		return err
 	}
-	chosen := slices.Clone(home.Personal.MCP)
-	var missing []string
-	var removed []string
-	for _, name := range names {
-		index := slices.IndexFunc(chosen, func(c string) bool { return strings.EqualFold(c, name) })
-		if index < 0 {
-			if !containsFold(removed, name) {
-				missing = append(missing, name)
-			}
-			continue
-		}
-		removed = append(removed, chosen[index])
-		chosen = slices.Delete(chosen, index, index+1)
-	}
-	if len(missing) > 0 {
-		return apperr.New(apperr.Usage, "not enabled: %s; enabled: %s; %s is unchanged",
-			strings.Join(missing, listSep), labelList(home.Personal.MCP), brand.LocalFile)
-	}
-	if err := config.WritePersonal(home.Root, home.Personal.WithMCPChoices(chosen)); err != nil {
+	removed, err := core.New(home).DisableMCP(names)
+	if err != nil {
 		return err
 	}
 	fmt.Fprintf(s.out, "disabled: %s (saved to %s); run `%s sync`\n", strings.Join(removed, listSep), brand.LocalFile, brand.Name)
@@ -252,7 +209,7 @@ func runMCPList(_ context.Context, s streams, g globals, args []string) error {
 	if err != nil {
 		return err
 	}
-	rows := mcp.Inspect(home)
+	rows := core.New(home).ListMCP()
 	table := tabwriter.NewWriter(s.out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(table, "NAME\tTRANSPORT\tENABLED\tMISSING")
 	for _, row := range rows {
@@ -288,7 +245,12 @@ func runMCPSync(_ context.Context, s streams, g globals, args []string) error {
 	if err != nil || help {
 		return err
 	}
-	return syncMCP(s, g, force)
+	home, err := loadHome(s, g)
+	if err != nil {
+		return err
+	}
+	_, err = core.New(home).SyncMCP(force, s.output())
+	return err
 }
 
 // syncArgs parses `[--force]` and nothing else.
@@ -309,29 +271,8 @@ func syncArgs(s streams, args []string, name string) (bool, bool, error) {
 	return *force, false, nil
 }
 
-func syncMCP(s streams, g globals, force bool) error {
-	home, err := loadHome(s, g)
-	if err != nil {
-		return err
-	}
-	return syncMCPHome(s, home, force)
-}
-
-func syncMCPHome(s streams, home *config.Home, force bool) error {
-	result, err := mcp.Sync(home, force, s.out, s.err)
-	if err != nil {
-		return err
-	}
-	if len(result.Failed) > 0 {
-		return apperr.Exit(apperr.ExitFailed)
-	}
-	return nil
-}
-
-// runSync loads the home repo once, runs the skill sync, then the MCP sync
-// whatever the skill sync's result, and exits with the worse code. A config
-// that does not load stops both, so its errors print once. --force is only
-// for MCP; the skill sync never sees it.
+// runSync loads the home repo once, so a config that does not load stops
+// both parts and its errors print once.
 func runSync(ctx context.Context, s streams, g globals, args []string) error {
 	force, help, err := syncArgs(s, args, "sync")
 	if err != nil || help {
@@ -341,19 +282,6 @@ func runSync(ctx context.Context, s streams, g globals, args []string) error {
 	if err != nil {
 		return err
 	}
-	git, cat, skillErr := skillTools(ctx, home)
-	if skillErr == nil {
-		skillErr = syncSkills(ctx, s, home, git, cat)
-	}
-	// An interrupt stops the run instead of going on to MCP.
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	skillCode := apperr.Report(s.err, skillErr)
-	mcpCode := apperr.Report(s.err, syncMCPHome(s, home, force))
-	code := max(skillCode, mcpCode)
-	if code == apperr.ExitOK {
-		return nil
-	}
-	return apperr.Exit(code)
+	_, err = core.New(home).Sync(ctx, force, s.output())
+	return err
 }

@@ -10,6 +10,20 @@ import (
 	"github.com/CTHua/hearth/internal/brand"
 )
 
+// NoRootError is FindRoot finding no team file, as opposed to failing to
+// look; it unwraps to the config error the CLI prints.
+type NoRootError struct {
+	err *apperr.Error
+}
+
+func (e *NoRootError) Error() string {
+	return e.err.Error()
+}
+
+func (e *NoRootError) Unwrap() error {
+	return e.err
+}
+
 // FindRoot walks up from start to the first directory that holds the team
 // file, so commands work from anywhere inside products/<name>/.
 func FindRoot(start string) (string, error) {
@@ -36,8 +50,8 @@ func FindRoot(start string) (string, error) {
 			break
 		}
 	}
-	return "", apperr.New(apperr.Config, "%s not found in %s or any parent directory; run `%s init <dir>` or pass -C <home repo>",
-		brand.TeamFile, abs, brand.Name)
+	return "", &NoRootError{err: apperr.New(apperr.Config, "%s not found in %s or any parent directory; run `%s init <dir>` or pass -C <home repo>",
+		brand.TeamFile, abs, brand.Name)}
 }
 
 func isFile(path string) (bool, error) {

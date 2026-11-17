@@ -5,8 +5,8 @@
 
 <!-- hearth:begin -->
 ## hearth（這一段由 hearth 管理，之後的版本會整段重寫）
-- 安裝：`go install github.com/CTHua/hearth/cmd/hearth@latest`，其他方式見 https://github.com/CTHua/hearth 。
-- clone 全部產品：`hearth clone`；看每個產品的狀態：`hearth repo list`；檢查環境和設定：`hearth doctor`。
+- 安裝：`go install github.com/CTHua/hearth/cmd/hearth@latest`，其他方式見 https://github.com/CTHua/hearth 。升級 hearth 之後跑 `hearth upgrade`，更新這一段和 `.gitignore` 的標記區段。
+- clone 全部產品：`hearth clone`；看每個產品的狀態：`hearth repo list`；檢查環境和設定：`hearth doctor`；使用者在終端機不帶參數跑 `hearth` 會開互動介面，agent 不要跑。
 - 產品清單在 `hearth.toml`。要新增或移除產品時，請使用者自己跑 `hearth repo add <url>` / `hearth repo remove <name>`，不要手改 `hearth.toml`；agent 的 sandbox 可能擋掉寫入。
 - 每個人的 ssh／https 選擇在 `hearth.local.toml`（不進版控），用 `hearth config protocol` 查看或設定。
 - skill 和 MCP server：團隊清單用 `hearth skill add <url>` / `remove <name>`、`hearth mcp add <name>` / `remove <name>`，個人選擇用 `hearth skill enable` / `disable <name>`、`hearth mcp enable` / `disable <name>`、`hearth config agents`，再由使用者跑 `hearth sync`；`hearth skill list`、`hearth mcp list` 看狀態。

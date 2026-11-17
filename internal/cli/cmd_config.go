@@ -9,6 +9,7 @@ import (
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/giturl"
 )
 
@@ -62,11 +63,7 @@ func runConfigProtocol(_ context.Context, s streams, g globals, args []string) e
 		return nil
 	}
 	protocol := positional[0]
-	if !config.ValidProtocol(protocol) {
-		return apperr.New(apperr.Usage, "protocol must be %q or %q, not %q", giturl.SSH, giturl.HTTPS, protocol)
-	}
-	personal := home.Personal.WithProtocol(protocol)
-	if err := config.WritePersonal(home.Root, personal); err != nil {
+	if err := core.New(home).SetProtocol(protocol); err != nil {
 		return err
 	}
 	fmt.Fprintf(s.out, "protocol: %s (saved to %s)\n", protocol, brand.LocalFile)
@@ -101,7 +98,7 @@ func runConfigAgents(_ context.Context, s streams, g globals, args []string) err
 		fmt.Fprintf(s.out, "agents: %s\n", agentsLabel(home.Personal.Agents))
 		return nil
 	}
-	if err := config.WritePersonal(home.Root, home.Personal.WithAgents(agents)); err != nil {
+	if err := core.New(home).SetAgents(agents); err != nil {
 		return err
 	}
 	fmt.Fprintf(s.out, "agents: %s (saved to %s); run `%s sync`\n", agentsLabel(agents), brand.LocalFile, brand.Name)

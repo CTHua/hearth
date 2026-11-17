@@ -646,7 +646,7 @@ func TestInterruptedCloneRemovesTempDirAndExits130(t *testing.T) {
 	}()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := cli.Run(ctx, []string{"-C", home, "clone"}, &stdout, &stderr)
+	code := cli.Run(ctx, []string{"-C", home, "clone"}, &stdout, &stderr, false)
 	if code != 130 || !strings.Contains(stderr.String(), "interrupted") {
 		t.Fatalf("exit %d, stderr %s", code, stderr.String())
 	}

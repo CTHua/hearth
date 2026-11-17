@@ -35,7 +35,16 @@ func run(t *testing.T, args ...string) result {
 	t.Helper()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := cli.Run(context.Background(), args, &stdout, &stderr)
+	code := cli.Run(context.Background(), args, &stdout, &stderr, false)
+	return result{code: code, stdout: stdout.String(), stderr: stderr.String()}
+}
+
+// runInTerminal runs as if stdin and stdout were terminals.
+func runInTerminal(t *testing.T, args ...string) result {
+	t.Helper()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := cli.Run(context.Background(), args, &stdout, &stderr, true)
 	return result{code: code, stdout: stdout.String(), stderr: stderr.String()}
 }
 
@@ -88,7 +97,10 @@ func TestVersionHelpAndUnknownCommand(t *testing.T) {
 			t.Errorf("%v: %+v", args, r)
 		}
 	}
-	run(t).expect(t, exitBad, "error [usage]")
+	// No command outside a terminal prints the help like `help` does.
+	if r := run(t); r.code != exitOK || !strings.HasPrefix(r.stdout, "usage: "+brand.Name) || r.stderr != "" {
+		t.Errorf("no command: %+v", r)
+	}
 	run(t, "frobnicate").expect(t, exitBad, "error [usage] unknown command")
 	run(t, "-x").expect(t, exitBad, "error [usage]")
 }
@@ -479,7 +491,7 @@ func TestInterruptedRunExits130(t *testing.T) {
 	cancel()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := cli.Run(ctx, []string{"-C", newHome(t), "repo", "list"}, &stdout, &stderr); code != 130 {
+	if code := cli.Run(ctx, []string{"-C", newHome(t), "repo", "list"}, &stdout, &stderr, false); code != 130 {
 		t.Errorf("exit %d, want 130; stderr %s", code, stderr.String())
 	}
 }
