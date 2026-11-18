@@ -57,13 +57,21 @@ commands:
                              (codex) for the chosen agents; --force
                              overwrites files edited by hand
   mcp list                   show every MCP server and missing variables
-  sync [--force]             skill sync, then mcp sync; --force is for MCP
+  subagent enable <name>...  choose subagents from subagents/ in %[3]s
+  subagent disable <name>... stop using subagents, including removed ones
+  subagent sync [--force]    write .claude/agents/<name>.md (claude) and
+                             .codex/agents/<name>.toml (codex) for the
+                             chosen agents; --force overwrites files
+                             edited by hand
+  subagent list              show every subagent and its state
+  sync [--force]             skill sync, mcp sync, then subagent sync;
+                             --force is for MCP and subagents
   config protocol [ssh|https]
                              show or set your protocol in %[3]s
   config agents [claude,codex|none]
                              show or set your agents in %[3]s
   doctor                     check git, both config files, every checkout,
-                             every chosen skill and MCP server
+                             every chosen skill, MCP server and subagent
   upgrade [--check]          rewrite the marked sections of AGENTS.md and
                              .gitignore and migrate both config files to
                              this version; --check only lists what would
@@ -129,18 +137,19 @@ func dispatch(ctx context.Context, s streams, args []string, terminal bool) erro
 		return runDefault(ctx, s, g)
 	}
 	commands := map[string]command{
-		"ui":      runUI,
-		"upgrade": runUpgrade,
-		"init":    runInit,
-		"clone":   runClone,
-		"repo":    runRepo,
-		"skill":   runSkill,
-		"mcp":     runMCP,
-		"sync":    runSync,
-		"config":  runConfig,
-		"doctor":  runDoctor,
-		"version": runVersion,
-		"help":    runHelp,
+		"ui":       runUI,
+		"upgrade":  runUpgrade,
+		"init":     runInit,
+		"clone":    runClone,
+		"repo":     runRepo,
+		"skill":    runSkill,
+		"mcp":      runMCP,
+		"subagent": runSubagent,
+		"sync":     runSync,
+		"config":   runConfig,
+		"doctor":   runDoctor,
+		"version":  runVersion,
+		"help":     runHelp,
 	}
 	run, found := commands[rest[0]]
 	if !found {

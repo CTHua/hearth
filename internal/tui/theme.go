@@ -9,6 +9,7 @@ import (
 
 	"github.com/CTHua/hearth/internal/checkout"
 	"github.com/CTHua/hearth/internal/skill"
+	"github.com/CTHua/hearth/internal/subagent"
 )
 
 // Color tokens. lipgloss downgrades them to what the terminal supports and
@@ -69,9 +70,9 @@ func statusCell(state string) cell {
 	switch state {
 	case stateOK:
 		return cell{symbolOK + " " + state, colorOK}
-	case string(skill.Disabled), string(skill.NotInstalled), string(skill.LinkMissing), string(checkout.Missing), stateOff:
+	case string(skill.Disabled), string(skill.NotInstalled), string(skill.LinkMissing), string(checkout.Missing), stateOff, string(subagent.NotSynced):
 		return cell{symbolOff + " " + state, colorMuted}
-	case string(skill.PathConflict), string(skill.LinkConflict), string(skill.SkillInvalid):
+	case string(skill.PathConflict), string(skill.LinkConflict), string(skill.SkillInvalid), string(subagent.Invalid):
 		return cell{symbolErr + " " + state, colorErr}
 	}
 	return cell{symbolWarn + " " + state, colorWarn}

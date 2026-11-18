@@ -5,7 +5,7 @@
 ## 這個目錄不會被自動發現
 
 - 沒有任何 agent 工具會自動讀 `agents/`。它只是一般資料夾，要用時自己打開模板、複製內容、填好再貼給 agent。
-- 有些工具有自己的自動載入位置，例如 Claude Code 的 `.claude/agents/`。這個模板只在那裡放一個 subagent 定義，見下面的「模型設定」；不建 symlink，也不把這個目錄的模板搬過去。
+- 有些工具有自己的自動載入位置，例如 Claude Code 的 `.claude/agents/`、Codex 的 `.codex/agents/`。subagent 定義寫在 [`../subagents/`](../subagents/)，每個人用 `hearth subagent enable <name>` 選、跑 `hearth sync` 後才產生到那兩個位置，見下面的「模型設定」；這個目錄的模板不會被搬過去。
 - 共同規則仍然只寫在 [`AGENTS.md`](../AGENTS.md)。模板只放「這次要交辦什麼」，不複製規則。
 
 ## 有哪些模板
@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | [`models.json`](models.json) | 沒有程式讀，給人看的紀錄 | 每個角色的 provider、alias、model ID、effort |
 | [`../.claude/settings.json`](../.claude/settings.json) | Claude Code | 只有 `env`：`CLAUDE_CODE_SUBAGENT_MODEL=sonnet` |
-| [`../.claude/agents/subagent.md`](../.claude/agents/subagent.md) | Claude Code | 通用 subagent，`model: sonnet`、`effort: medium` |
+| [`../subagents/subagent.md`](../subagents/subagent.md) | `hearth sync` 轉成 Claude Code 的 `.claude/agents/subagent.md` | 通用 subagent，`claude:` 底下 `model: sonnet`、`effort: medium`；預設不開，要用的人 `hearth subagent enable subagent` |
 
 這三個檔案要保持一致：settings 的 `env` 不放憑證或其他 provider 的開關，subagent 的 `model` 和 `effort` 跟 `models.json` 相同。改了其中一個，另外兩個要一起改，在 PR review 時對照。
 
@@ -36,7 +36,7 @@
 
 - 這些是可以換掉的預設，不保證永遠可用。
 - alias 在 Anthropic API 上會解析成最新版；`model` 欄位只記錄查的那天解析出來的 ID，新版推出後兩者會不同。
-- 要固定版本：把 `.claude/settings.json` 和 `subagent.md` 的值改成完整 model ID（例如 `claude-sonnet-5-5`），再同步改 `models.json`。
+- 要固定版本：把 `.claude/settings.json` 和 `subagents/subagent.md` 的值改成完整 model ID（例如 `claude-sonnet-5-5`），再同步改 `models.json`。
 
 ### 主對話的模型不寫死
 

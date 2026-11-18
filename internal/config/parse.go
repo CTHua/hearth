@@ -19,6 +19,7 @@ const (
 	keyRepos         = "repos"
 	keySkills        = "skills"
 	keyAgents        = "agents"
+	keySubagents     = "subagents"
 )
 
 // document is a decoded file kept as generic values, so keys are checked by
@@ -226,7 +227,7 @@ func decodeEntry(table string, fields []string, index int, entry map[string]any)
 }
 
 func parsePersonal(doc document) (Personal, apperr.List) {
-	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keySkills, keyMCP)
+	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keySkills, keyMCP, keySubagents)
 	personal := Personal{SchemaVersion: doc.values[keySchemaVersion].(int64)}
 	if raw, present := doc.values[keyProtocol]; present {
 		text, isString := raw.(string)
@@ -245,7 +246,10 @@ func parsePersonal(doc document) (Personal, apperr.List) {
 	// Like skills, a chosen name no server has is a stale choice, not an error.
 	servers, serverProblems := stringList(doc, keyMCP, MCPNameProblem)
 	personal.MCP = servers
-	return personal, append(problems, serverProblems...)
+	problems = append(problems, serverProblems...)
+	subagents, subagentProblems := stringList(doc, keySubagents, SubagentNameProblem)
+	personal.Subagents = subagents
+	return personal, append(problems, subagentProblems...)
 }
 
 // stringList reads the array of strings called key; an absent key is an

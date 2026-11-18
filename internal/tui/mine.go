@@ -23,12 +23,14 @@ const (
 	sectionAgents
 	sectionSkills
 	sectionServers
+	sectionSubagents
 )
 
 // mineRow says which group a Mine row is in and its index there.
 func (m *Model) mineRow(row int) (section, int) {
 	skillsStart := optionCount + agentRows
 	serversStart := skillsStart + len(m.snap.skills)
+	subagentsStart := serversStart + len(m.snap.servers)
 	switch {
 	case row < optionCount:
 		return sectionProtocol, row
@@ -36,8 +38,10 @@ func (m *Model) mineRow(row int) (section, int) {
 		return sectionAgents, row - optionCount
 	case row < serversStart:
 		return sectionSkills, row - skillsStart
+	case row < subagentsStart:
+		return sectionServers, row - serversStart
 	}
-	return sectionServers, row - serversStart
+	return sectionSubagents, row - subagentsStart
 }
 
 // mineKey handles Mine: every change here goes to the personal file, and
@@ -77,6 +81,18 @@ func (m *Model) mineKey(msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		m.toggleChoice(item.Name, item.Enabled, m.actions.EnableSkills, m.actions.DisableSkills)
+	case sectionSubagents:
+		row := m.snap.subagents[index]
+		// Like the built-in skill, an invalid one that is not chosen cannot
+		// be turned on; core would only refuse it.
+		if row.Invalid != "" && !row.Enabled {
+			m.messages = []string{fmt.Sprintf(msgSubagentInvalid, row.Invalid)}
+			return nil
+		}
+		if m.busy() {
+			return nil
+		}
+		m.toggleChoice(row.Name, row.Enabled, m.actions.EnableSubagents, m.actions.DisableSubagents)
 	default:
 		if m.busy() {
 			return nil

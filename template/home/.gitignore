@@ -14,6 +14,9 @@
 # their hashes.
 /.mcp.json
 /.codex/
+# Written by `hearth sync` from subagents/ for the chosen subagents; the
+# Codex ones go to .codex/agents/, already ignored above.
+/.claude/agents/
 # hearth:end
 
 # Credentials

@@ -33,7 +33,7 @@ hearth repo fix-remote                        # origin 只差協定時改成預�
 hearth                                        # 在終端機裡開 TUI；不是終端機或不在 Home Repo 時印 help、exit 0
 hearth ui                                     # 一定開 TUI；stdin、stdout 不是終端機時 exit 2
 hearth upgrade [--check]                      # 換新版 hearth 後更新 AGENTS.md、.gitignore 的標記區段和設定檔的 schema_version；--check 只列出、有要改時 exit 1
-hearth doctor                                 # 檢查 git、設定檔、標記區段、每個 checkout、選到的 skill 和 MCP server
+hearth doctor                                 # 檢查 git、設定檔、標記區段、每個 checkout、選到的 skill、MCP server 和 subagent
 ```
 
 skill：
@@ -60,8 +60,25 @@ hearth mcp enable docs                        # 個人檔
 hearth mcp disable docs                       # 也能清掉已被移除的名稱
 hearth mcp sync [--force]                     # 照選的 agent 寫 .mcp.json（claude）、.codex/config.toml（codex）
 hearth mcp list                               # 只讀；列出缺的環境變數名稱
-hearth sync [--force]                         # skill sync 再 mcp sync；--force 只給 MCP
+hearth sync [--force]                         # skill sync、mcp sync，再 subagent sync；--force 給 MCP 和 subagent
 ```
+
+subagent：
+
+```sh
+hearth subagent enable reviewer               # 個人檔；定義是團隊在 subagents/<name>.md 寫的檔
+hearth subagent disable reviewer              # 也能清掉已被移除的名稱
+hearth subagent sync [--force]                # 照選的 agent 寫 .claude/agents/<name>.md（claude）、.codex/agents/<name>.toml（codex）
+hearth subagent list                          # 只讀；列出狀態和不合格的原因
+```
+
+- 一份 `subagents/<name>.md`（Markdown 加 YAML frontmatter，`claude:`、`codex:` 放各工具的欄位）同時轉給兩個工具。格式見產生的 Home Repo 的 README。
+- Codex 端還沒實測生效：`.codex/agents/<name>.toml` 照 Codex 官方文件產生，2026-11-18 用 Codex 0.162.1 試時，指名的角色沒有套用定義。
+- 手改、symlink、`--force` 的規則跟 MCP 的產生檔相同，記錄也在同一個 `.hearth/state.json`；你自己放在 `.claude/agents/` 的其他檔不會被碰。
+- 從舊版升級的 Home Repo：`hearth upgrade` 會把 `/.claude/agents/` 加進 `.gitignore` 的標記區段，但不會搬已經進版控的 `.claude/agents/subagent.md`。手動搬：
+  1. 把它改寫成 `subagents/subagent.md`：`name`、`description` 留在頂層，`tools`、`model`、`effort` 搬到 `claude:` 底下，內文不變。
+  2. `git rm .claude/agents/subagent.md`，連工作目錄的檔一起刪。
+  3. `hearth subagent enable subagent`，再 `hearth sync`。
 
 - 秘密只能寫環境變數名稱（`env_vars`、`bearer_token_env`、`header_envs`），沒有地方放值。
 - 產生的檔案的 SHA-256 記在 `.hearth/state.json`；被手改過的檔 `sync` 不覆寫、不刪，報 `generated-modified`、exit 1，其他檔照常更新；`--force` 才覆寫。
@@ -69,7 +86,7 @@ hearth sync [--force]                         # skill sync 再 mcp sync；--forc
 
 TUI（`hearth` 或 `hearth ui`）：
 
-- Mine 分頁改 `hearth.local.toml`：protocol、agent、每個 skill 和 MCP server 的開關，`s` 跑 `hearth sync`。
+- Mine 分頁改 `hearth.local.toml`：protocol、agent、每個 skill、MCP server 和 subagent 的開關（不合格的 subagent 不能打開），`s` 跑 `hearth sync`。
 - team 分頁（Repos、Skills、MCP）改 `hearth.toml`：`a` 新增、`d` 按兩次移除；Skills 只列 external skill，`u` 換 pin。新增 MCP server 的表單只收 command、url、env vars；http 的 token、header 用 CLI。
 - team 分頁的頁首列出 `hearth.toml` 跟 HEAD 比的改動數和被移除的名字，有改動的列標 `+`（新增）或 `~`（內容不同）。
 - `?` 開快捷鍵表；終端機小於 80×24 時只顯示放大視窗的提示。

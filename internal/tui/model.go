@@ -20,6 +20,7 @@ import (
 	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/skill"
+	"github.com/CTHua/hearth/internal/subagent"
 )
 
 type tab int
@@ -54,15 +55,16 @@ const (
 var agentRows = len(config.Agents())
 
 const (
-	msgBusy        = "busy: %s is running; wait for it or press ctrl+c to cancel it"
-	msgRunning     = "running: %s (ctrl+c cancels)"
-	msgCanceling   = "canceling %s; waiting for git to stop"
-	msgDone        = "done: %s"
-	msgConfirm     = "press d again to remove %s from %s; any other key keeps it"
-	msgBuiltin     = "the built-in skill is installed whenever an agent is chosen; it cannot be toggled"
-	msgURLRequired = "the URL is required"
-	msgFormClosed  = "closed the form; nothing was saved"
-	msgNothing     = "nothing selected"
+	msgBusy            = "busy: %s is running; wait for it or press ctrl+c to cancel it"
+	msgRunning         = "running: %s (ctrl+c cancels)"
+	msgCanceling       = "canceling %s; waiting for git to stop"
+	msgDone            = "done: %s"
+	msgConfirm         = "press d again to remove %s from %s; any other key keeps it"
+	msgBuiltin         = "the built-in skill is installed whenever an agent is chosen; it cannot be toggled"
+	msgSubagentInvalid = "cannot enable: %s"
+	msgURLRequired     = "the URL is required"
+	msgFormClosed      = "closed the form; nothing was saved"
+	msgNothing         = "nothing selected"
 )
 
 // Job labels, shown while a background action runs.
@@ -85,6 +87,8 @@ type snapshot struct {
 	repos   []core.RepoRow
 	skills  []skill.Row
 	servers []mcp.Row
+	// subagents are the Mine rows of subagent definitions.
+	subagents []subagent.Row
 	// changes are the team-file entries that differ from HEAD.
 	changes []core.TeamChange
 	// problems are listing errors, shown above the tab's content.
@@ -103,6 +107,11 @@ func load(ctx context.Context, actions core.Actions) snapshot {
 		snap.problems = append(snap.problems, reportLines(err)...)
 	}
 	snap.skills = skills
+	subagents, err := actions.ListSubagents()
+	if err != nil {
+		snap.problems = append(snap.problems, reportLines(err)...)
+	}
+	snap.subagents = subagents
 	changes, err := actions.TeamChanges(ctx)
 	if err != nil {
 		snap.problems = append(snap.problems, reportLines(err)...)
@@ -288,7 +297,7 @@ func (m *Model) busy() bool {
 func (m *Model) rowCount(t tab) int {
 	switch t {
 	case tabMine:
-		return optionCount + agentRows + len(m.snap.skills) + len(m.snap.servers)
+		return optionCount + agentRows + len(m.snap.skills) + len(m.snap.servers) + len(m.snap.subagents)
 	case tabRepos:
 		return len(m.snap.repos)
 	case tabSkills:

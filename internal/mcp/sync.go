@@ -10,6 +10,7 @@ import (
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/genfile"
 )
 
 // rootDir is what filepath.Dir returns for a file at the top of the root.
@@ -77,11 +78,11 @@ func Sync(home *config.Home, force bool, out io.Writer, errw io.Writer) (Result,
 	if len(sel.servers) > 0 && len(home.Personal.Agents) == 0 {
 		fmt.Fprintf(out, "mcp: servers are enabled but no agent is chosen; choose one with `%s config agents`\n", brand.Name)
 	}
-	if problem := fileProblem(home.Root, brand.StateFile); problem != "" {
+	if problem := genfile.FileProblem(home.Root, brand.StateFile); problem != "" {
 		t.fail(apperr.ForRepo(apperr.PathConflict, brand.StateFile, "%s; no MCP file was written", problem))
 		return t.result, nil
 	}
-	st, err := loadState(home.Root)
+	st, err := genfile.Load(home.Root)
 	if err != nil {
 		return Result{}, err
 	}
@@ -99,7 +100,7 @@ func Sync(home *config.Home, force bool, out io.Writer, errw io.Writer) (Result,
 		}
 	}
 	if changed {
-		if err := saveState(home.Root, st); err != nil {
+		if err := genfile.Save(home.Root, st); err != nil {
 			t.fail(apperr.ForRepo(apperr.PathConflict, brand.StateFile, "cannot write: %v; the next sync reports the files it wrote as generated-modified", err))
 		}
 	}
@@ -108,15 +109,15 @@ func Sync(home *config.Home, force bool, out io.Writer, errw io.Writer) (Result,
 
 // syncFile brings one generated file in line and updates st. changed
 // reports whether st was changed.
-func syncFile(root string, tg target, wanted bool, servers []config.MCP, st state, force bool) (string, bool, *apperr.Error) {
+func syncFile(root string, tg target, wanted bool, servers []config.MCP, st genfile.State, force bool) (string, bool, *apperr.Error) {
 	recorded, managed := st.Files[tg.rel]
 	if !wanted && !managed {
 		return "", false, nil
 	}
-	if problem := fileProblem(root, tg.rel); problem != "" {
+	if problem := genfile.FileProblem(root, tg.rel); problem != "" {
 		return "", false, apperr.ForRepo(apperr.PathConflict, tg.rel, "%s; left unchanged, even with --force", problem)
 	}
-	current, exists, err := readHash(root, tg.rel)
+	current, exists, err := genfile.ReadHash(root, tg.rel)
 	if err != nil {
 		return "", false, apperr.ForRepo(apperr.PathConflict, tg.rel, "cannot read: %v", err)
 	}
@@ -136,7 +137,7 @@ func syncFile(root string, tg target, wanted bool, servers []config.MCP, st stat
 		delete(st.Files, tg.rel)
 		// .codex/ goes too once it is empty; the root itself never does.
 		if filepath.Dir(tg.rel) != rootDir {
-			if err := removeIfEmpty(filepath.Dir(path)); err != nil {
+			if err := genfile.RemoveIfEmpty(filepath.Dir(path)); err != nil {
 				return "", true, apperr.ForRepo(apperr.PathConflict, tg.rel, "removed, but cannot remove its empty directory: %v", err)
 			}
 		}
@@ -149,11 +150,11 @@ func syncFile(root string, tg target, wanted bool, servers []config.MCP, st stat
 	if err != nil {
 		return "", false, apperr.ForRepo(apperr.Env, tg.rel, "%v", err)
 	}
-	sum := digest(content)
+	sum := genfile.Digest(content)
 	if untouched && current == sum {
 		return fmt.Sprintf("mcp %s: up to date", tg.rel), false, nil
 	}
-	if err := writeFile(path, content); err != nil {
+	if err := genfile.WriteFile(path, content); err != nil {
 		return "", false, apperr.ForRepo(apperr.PathConflict, tg.rel, "cannot write: %v", err)
 	}
 	st.Files[tg.rel] = sum

@@ -35,6 +35,7 @@ type personalPart struct {
 	Agents        []string `toml:"agents,omitempty"`
 	Skills        []string `toml:"skills,omitempty"`
 	MCP           []string `toml:"mcp,omitempty"`
+	Subagents     []string `toml:"subagents,omitempty"`
 }
 
 // WriteTeam replaces the whole team file under root. Only the fixed header
@@ -119,7 +120,7 @@ func HeaderPairs(headers []HeaderEnv) [][2]string {
 // so a command that changes one key keeps the others.
 func WritePersonal(root string, p Personal) error {
 	var buf bytes.Buffer
-	part := personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents, Skills: p.Skills, MCP: p.MCP}
+	part := personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents, Skills: p.Skills, MCP: p.MCP, Subagents: p.Subagents}
 	if err := encode(&buf, part); err != nil {
 		return apperr.New(apperr.Config, "cannot encode %s: %v", brand.LocalFile, err)
 	}

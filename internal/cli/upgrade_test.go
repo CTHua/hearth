@@ -93,7 +93,7 @@ func TestUpgradeRewritesP1SectionsOnly(t *testing.T) {
 		t.Errorf("stdout: %s", r.stdout)
 	}
 	ignore := read(t, gitignorePath(home))
-	for _, want := range []string{"/vendor/", "/" + brand.StateDir + "/", "/.claude/skills/", "/.agents/skills/", "/.mcp.json", "/.codex/"} {
+	for _, want := range []string{"/vendor/", "/" + brand.StateDir + "/", "/.claude/skills/", "/.agents/skills/", "/.mcp.json", "/.codex/", "/.claude/agents/"} {
 		if !strings.Contains(ignore, "\n"+want+"\n") {
 			t.Errorf(".gitignore lacks %s:\n%s", want, ignore)
 		}

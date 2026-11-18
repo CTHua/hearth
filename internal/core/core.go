@@ -2,7 +2,7 @@
 // CLI and the terminal UI. Actions take structured parameters and return
 // structured results; they parse no flags and pick no output stream.
 //
-// Batch actions (Clone, FixRemote, SyncSkills, SyncMCP, Sync) are the one
+// Batch actions (Clone, FixRemote, SyncSkills, SyncMCP, SyncSubagents, Sync) are the one
 // exception: they stream per-item lines, git's progress and the summary to
 // the Output the caller passes, as they happen, because a run can take
 // minutes. Their result carries the same outcome in structured form.
@@ -19,6 +19,7 @@ import (
 	"github.com/CTHua/hearth/internal/config"
 	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/skill"
+	"github.com/CTHua/hearth/internal/subagent"
 )
 
 const (
@@ -57,6 +58,9 @@ type Actions interface {
 	EnableMCP(names []string) ([]string, error)
 	DisableMCP(names []string) ([]string, error)
 	ListMCP() []mcp.Row
+	EnableSubagents(names []string) ([]string, error)
+	DisableSubagents(names []string) ([]string, error)
+	ListSubagents() ([]subagent.Row, error)
 	Sync(ctx context.Context, force bool, out Output) (SyncResult, error)
 
 	TeamChanges(ctx context.Context) ([]TeamChange, error)

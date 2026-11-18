@@ -9,6 +9,7 @@ import (
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
 	"github.com/CTHua/hearth/internal/mcp"
+	"github.com/CTHua/hearth/internal/subagent"
 )
 
 // AddMCP adds a server to the team file. Mixing the transports' flags is
@@ -92,14 +93,16 @@ func (s *Service) SyncMCP(force bool, out Output) (mcp.Result, error) {
 
 // SyncResult is what the top-level sync did in each part.
 type SyncResult struct {
-	Skills BatchResult
-	MCP    mcp.Result
+	Skills    BatchResult
+	MCP       mcp.Result
+	Subagents subagent.Result
 }
 
-// Sync runs the skill sync, then the MCP sync whatever the skill sync's
-// result, and ends with the worse exit code. Each part's error is reported
-// to out.Err as it ends, so the transcript reads in order. force is only
-// for MCP. An interrupt stops the run before MCP.
+// Sync runs the skill sync, then the MCP sync and the subagent sync
+// whatever the earlier parts' results, and ends with the worst exit code.
+// Each part's error is reported to out.Err as it ends, so the transcript
+// reads in order. force is for MCP and subagents. An interrupt stops the
+// run before MCP.
 func (s *Service) Sync(ctx context.Context, force bool, out Output) (SyncResult, error) {
 	var result SyncResult
 	skills, skillErr := s.SyncSkills(ctx, out)
@@ -111,7 +114,10 @@ func (s *Service) Sync(ctx context.Context, force bool, out Output) (SyncResult,
 	servers, mcpErr := s.SyncMCP(force, out)
 	result.MCP = servers
 	mcpCode := apperr.Report(out.Err, mcpErr)
-	code := max(skillCode, mcpCode)
+	subagents, subagentErr := s.SyncSubagents(force, out)
+	result.Subagents = subagents
+	subagentCode := apperr.Report(out.Err, subagentErr)
+	code := max(skillCode, mcpCode, subagentCode)
 	if code == apperr.ExitOK {
 		return result, nil
 	}

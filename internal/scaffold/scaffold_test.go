@@ -13,6 +13,7 @@ import (
 	"github.com/CTHua/hearth/internal/gittest"
 	"github.com/CTHua/hearth/internal/gitx"
 	"github.com/CTHua/hearth/internal/scaffold"
+	"github.com/CTHua/hearth/internal/subagent"
 )
 
 func TestMain(m *testing.M) {
@@ -33,8 +34,8 @@ var forbiddenMentions = []string{
 var pythonConfigRE = regexp.MustCompile(`(?:^|[^/])config\.toml`)
 
 // init never writes agent auto-load settings or the directories that only
-// `skill sync` creates.
-var forbiddenPaths = []string{".mcp.json", ".codex/config.toml", ".claude/skills", ".agents/skills", "vendor/skills", "vendor", brand.StateDir}
+// `sync` creates; since P6 that includes the generated subagent files.
+var forbiddenPaths = []string{".mcp.json", ".codex/config.toml", ".claude/skills", ".agents/skills", "vendor/skills", "vendor", brand.StateDir, ".claude/agents", ".codex"}
 
 var (
 	machinePathRE = regexp.MustCompile(`(?:/Users|/home)/[A-Za-z0-9]|[A-Za-z]:\\Users\\`)
@@ -104,7 +105,7 @@ func TestInitWritesTemplateTeamFileAndGitRepo(t *testing.T) {
 	files := generatedFiles(t, dir)
 	want := []string{
 		"AGENTS.md", "CLAUDE.md", "README.md", ".gitignore", brand.TeamFile,
-		".claude/settings.json", ".claude/agents/subagent.md",
+		".claude/settings.json", "subagents/subagent.md",
 		"agents/README.md", "agents/_task-brief.md", "agents/models.json",
 		"memory/README.md", "memory/conventions/_template.md", "memory/decisions/_template.md",
 		"skills/README.md", "skills/_template/SKILL.md",
@@ -331,6 +332,41 @@ func TestGitignoreBlockIgnoresMCPOutputs(t *testing.T) {
 	ignored := gittest.Git(t, dir, append([]string{"check-ignore"}, paths...)...)
 	if strings.Count(ignored, "\n") != len(paths) {
 		t.Errorf("check-ignore: %q", ignored)
+	}
+}
+
+func TestTemplateSubagentIsValidAndOutputsAreIgnored(t *testing.T) {
+	dir := initHome(t)
+	cat, err := subagent.Discover(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := cat.Items()
+	if len(items) != 1 || items[0].Name != "subagent" || items[0].Invalid != "" {
+		t.Errorf("template subagents: %+v", items)
+	}
+	block := markerBlock(t, ".gitignore", readFile(t, filepath.Join(dir, ".gitignore")), brand.GitignoreBegin, brand.GitignoreEnd)
+	if !strings.Contains(strings.Join(block, "\n")+"\n", "/.claude/agents/\n") {
+		t.Errorf("block lacks /.claude/agents/:\n%s", strings.Join(block, "\n"))
+	}
+	paths := []string{subagent.ClaudeDir + "/subagent.md", subagent.CodexDir + "/subagent.toml"}
+	for _, path := range paths {
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ignored := gittest.Git(t, dir, append([]string{"check-ignore"}, paths...)...)
+	if strings.Count(ignored, "\n") != len(paths) {
+		t.Errorf("check-ignore: %q", ignored)
+	}
+	for _, shared := range []string{"subagents/subagent.md", ".claude/settings.json"} {
+		if got := strings.TrimSpace(gittest.Git(t, dir, "ls-files", "--others", "--exclude-standard", shared)); got != shared {
+			t.Errorf("%s should stay trackable, ls-files says %q", shared, got)
+		}
 	}
 }
 

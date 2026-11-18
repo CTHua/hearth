@@ -239,6 +239,8 @@ func (m *Model) rowText() string {
 		}
 		_, detail := serverState(server)
 		return detail
+	case sectionSubagents:
+		return m.snap.subagents[index].FullDetail()
 	}
 	return ""
 }

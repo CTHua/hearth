@@ -65,6 +65,9 @@ type Personal struct {
 	// MCP are the chosen MCP server names; stale ones are treated the same
 	// way as stale skills.
 	MCP []string
+	// Subagents are the chosen subagent names; stale ones are treated the
+	// same way as stale skills.
+	Subagents []string
 }
 
 // Home is a loaded home repo.

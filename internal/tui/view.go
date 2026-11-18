@@ -15,6 +15,7 @@ import (
 	"github.com/CTHua/hearth/internal/giturl"
 	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/skill"
+	"github.com/CTHua/hearth/internal/subagent"
 )
 
 const (
@@ -505,11 +506,13 @@ func radio(on bool, label string) []cell {
 func (m *Model) mineLines(b *rows) {
 	skillHeader := []string{"", "SKILL", "SOURCE", "STATUS", "DETAIL"}
 	serverHeader := []string{"", "MCP SERVER", "TRANSPORT", "STATUS", "DETAIL"}
+	subagentHeader := []string{"", "SUBAGENT", "", "STATUS", "DETAIL"}
 	skillCells := m.skillCells()
 	serverCells := m.serverCells()
-	// One set of widths keeps the two tables' columns aligned; the server
-	// header is the wider of the two.
-	widths := columnWidths(serverHeader, skillCells, serverCells)
+	subagentCells := m.subagentCells()
+	// One set of widths keeps the tables' columns aligned; the server
+	// header is the widest.
+	widths := columnWidths(serverHeader, skillCells, serverCells, subagentCells)
 	personal := m.snap.home.Personal
 	protocol := personal.Protocol
 	if protocol == "" {
@@ -544,6 +547,29 @@ func (m *Model) mineLines(b *rows) {
 	if len(serverCells) == 0 {
 		b.text(gutter + muted.Render(fmt.Sprintf("   no MCP servers in %s; add one on the %s tab", brand.TeamFile, tabNames[tabMCP])))
 	}
+	b.text("")
+	b.header(subagentHeader, widths)
+	for _, cells := range subagentCells {
+		b.item(cells, widths)
+	}
+	if len(subagentCells) == 0 {
+		b.text(gutter + muted.Render(fmt.Sprintf("   no subagents; the team adds one as %s/<name>.md", subagent.SourceDir)))
+	}
+}
+
+func (m *Model) subagentCells() [][]cell {
+	var cells [][]cell
+	for _, row := range m.snap.subagents {
+		check := box(row.Enabled)
+		switch {
+		case row.Stale:
+			check = cell{checkedBox, colorWarn}
+		case row.Invalid != "" && !row.Enabled:
+			check = cell{uncheckedBox, colorDim}
+		}
+		cells = append(cells, []cell{check, {row.Name, nil}, {"", nil}, statusCell(string(row.State)), {row.FullDetail(), colorMuted}})
+	}
+	return cells
 }
 
 func (m *Model) skillCells() [][]cell {

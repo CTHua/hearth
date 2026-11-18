@@ -8,12 +8,14 @@
 | --- | --- |
 | `cmd/hearth/main.go` | 入口：判斷 stdin、stdout 是不是 TTY，交給 `internal/cli` |
 | `internal/cli` | 子指令和參數解析（標準庫 `flag`）：解析旗標 → 呼叫 `internal/core` → 印結果；沒參數時開 TUI 或印 help |
-| `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、sync），吃已載入的 home、回傳結構化結果；`TeamChanges` 比較 `hearth.toml` 跟 HEAD；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
-| `internal/tui` | Bubble Tea v2 的 TUI：Mine（個人檔）和 team 組的 Repos、Skills、MCP（團隊檔）四個分頁、置中表單、`?` 快捷鍵表、滑鼠（點擊照 render 時記下的區域判斷）和 `y` 剪貼簿，只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
+| `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、subagent、sync），吃已載入的 home、回傳結構化結果；`TeamChanges` 比較 `hearth.toml` 跟 HEAD；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
+| `internal/tui` | Bubble Tea v2 的 TUI：Mine（個人檔，含 skill、MCP、subagent 的開關）和 team 組的 Repos、Skills、MCP（團隊檔）四個分頁、置中表單、`?` 快捷鍵表、滑鼠（點擊照 render 時記下的區域判斷）和 `y` 剪貼簿，只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
 | `internal/upgrade` | `hearth upgrade`：重寫標記區段、照遷移鏈升級設定檔的 `schema_version`；鏈和目標版本是參數 |
-| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`）的讀寫、驗證、版本 gate、根目錄搜尋 |
-| `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、`.hearth/state.json` 的 hash 判斷、環境變數和 PATH 檢查 |
-| `internal/tomlstr` | 手寫 TOML 值（字串、陣列、inline table），給 encoder 無法保留順序的地方用 |
+| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`、`subagents`）的讀寫、驗證、版本 gate、根目錄搜尋 |
+| `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、環境變數和 PATH 檢查 |
+| `internal/subagent` | 讀 `subagents/<name>.md`（YAML frontmatter 用 `yaml.Node` 保留順序）、驗證、轉成 `.claude/agents/<name>.md` 和 `.codex/agents/<name>.toml`（格式只在這裡，黃金檔在 `testdata/`；Codex 端還沒實測生效）、狀態、sync；擁有 state 裡 `.claude/agents/`、`.codex/agents/` 開頭的記錄 |
+| `internal/genfile` | `.hearth/state.json` 的讀寫、hash、手改判斷用的檔案和 symlink 檢查，`internal/mcp`、`internal/subagent` 共用；各自只改自己的記錄 |
+| `internal/tomlstr` | 手寫 TOML 值和 key（字串、陣列、inline table、dotted key），給 encoder 無法保留順序的地方用 |
 | `internal/giturl` | 三種 URL 寫法的解析和 ssh／https 轉換 |
 | `internal/gitx` | 拿掉繼承的 git local env vars 後執行 git |
 | `internal/checkout` | 只讀檢查一個 checkout 的狀態；路徑上的 symlink 檢查和 checkout root 檢查也給 `internal/skill` 用 |
@@ -36,10 +38,11 @@
   ```
 
 - 測試只碰公開介面，不連網路。要用 git 的測試在 `TestMain` 呼叫 `gittest.Main`，遠端用 `gittest.BareRemote` 和 `gittest.Redirect`。
-- 相依只有 `github.com/BurntSushi/toml`、TUI 用的 Charm 套件（`charm.land/bubbletea/v2`、`charm.land/bubbles/v2`、`charm.land/lipgloss/v2`）和判斷 TTY 的 `github.com/charmbracelet/x/term`。新增或升級相依先討論。
+- 相依只有 `github.com/BurntSushi/toml`、讀 subagent frontmatter 的 `go.yaml.in/yaml/v3`、TUI 用的 Charm 套件（`charm.land/bubbletea/v2`、`charm.land/bubbles/v2`、`charm.land/lipgloss/v2`）和判斷 TTY 的 `github.com/charmbracelet/x/term`。新增或升級相依先討論。
 - 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。
-  - 例外：第一次發布前只有開發者自己用（2026-11-17 定），P2 加的 `[[skills]]`、`agents`、`skills` 和 P3 加的 `[[mcp]]`、`mcp` 直接加進 `schema_version = 1`，不寫遷移。發布之後這條例外失效。
+  - 例外：第一次發布前只有開發者自己用（2026-11-17 定），P2 加的 `[[skills]]`、`agents`、`skills` 和 P3 加的 `[[mcp]]`、`mcp`、P6 加的 `subagents` 直接加進 `schema_version = 1`，不寫遷移。發布之後這條例外失效。
 - 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。
 - agent 的 MCP 設定（`.mcp.json`、`.codex/config.toml`）和 `.hearth/state.json` 只由 `hearth sync` / `hearth mcp sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫。秘密只寫環境變數名稱。
+- subagent 的產出檔（`.claude/agents/<name>.md`、`.codex/agents/<name>.toml`）只由 `hearth sync` / `hearth subagent sync` 從 `subagents/` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。規則同 MCP：被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫；沒記錄、也不在這次目標裡的檔不碰。
 - skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth sync` / `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
 - 未經要求不 commit、不 push、不打 tag、不發 Release。

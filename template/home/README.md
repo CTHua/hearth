@@ -30,7 +30,7 @@ hearth doctor                # 檢查 git、設定檔和每個 checkout
 | 檔案 | 誰改 | 版控 |
 | --- | --- | --- |
 | `hearth.toml` | 團隊，透過 `hearth repo add` / `remove`、`hearth skill add` / `remove` / `update`、`hearth mcp add` / `remove` 再開 PR | 進版控 |
-| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol`、`hearth config agents`、`hearth skill enable` / `disable`、`hearth mcp enable` / `disable` | 被 `.gitignore` 忽略 |
+| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol`、`hearth config agents`、`hearth skill enable` / `disable`、`hearth mcp enable` / `disable`、`hearth subagent enable` / `disable` | 被 `.gitignore` 忽略 |
 
 `hearth.toml` 的格式：
 
@@ -96,12 +96,12 @@ subdir = "pdf"
 | `commit` | 完整的 40 或 64 個小寫 hex，不能是分支或 tag |
 | `subdir` | `.` 或 repo 裡的相對路徑，不能有 `.`、`..`、`.git` 段；底下要有 `SKILL.md` |
 
-`hearth.local.toml` 的個人選擇：`agents = ["claude", "codex"]`、`skills = ["pdf"]`，不存在代表空的。
+`hearth.local.toml` 的個人選擇：`agents = ["claude", "codex"]`、`skills = ["pdf"]`（MCP 和 subagent 是 `mcp`、`subagents`），不存在代表空的。
 
 - 沒給 `--commit` 時 `skill add`、`skill update` 用 `git ls-remote` 問遠端 `HEAD`；給了完整 SHA 時不連網。
 - `skill sync` 把外部 skill clone 到 `vendor/skills/<name>`、detached 在 pin，內建的 `hearth` skill 寫到 `.hearth/skills/hearth/`，再 symlink 到 `.claude/skills/`（`claude`）、`.agents/skills/`（`codex`）。已經在 pin 的不 clone、不 fetch。
 - `skill remove` 只改 `hearth.toml`：下次 `sync` 清掉 link，`vendor/skills/<name>` 要自己刪。
-- `doctor` 也檢查選到的 skill 和 MCP server。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
+- `doctor` 也檢查選到的 skill、MCP server 和 subagent，以及不合格的 subagent 定義。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
 
 | 類別 | 意思 | 怎麼處理 |
 | --- | --- | --- |
@@ -114,7 +114,7 @@ subdir = "pdf"
 | `symlink-unavailable` | 這個檔案系統建不了 symlink；`hearth` 不改用複製 | 換一個支援 symlink 的位置 |
 | `unknown` | 你選著的 skill 已經被移除；當成沒選 | `hearth skill disable <name>` |
 
-`hearth sync` 先跑 `hearth skill sync`，再跑 `hearth mcp sync`，exit code 取比較嚴重的那個。
+`hearth sync` 依序跑 `hearth skill sync`、`hearth mcp sync`、`hearth subagent sync`，前面失敗也會跑後面，exit code 取最嚴重的那個；`--force` 給 MCP 和 subagent。
 
 ## MCP server
 
@@ -164,6 +164,60 @@ header_envs = { "X-Workspace" = "TRACKER_WORKSPACE" }
 | --- | --- | --- |
 | `generated-modified` | 產生的檔案在上次 `sync` 之後被改過，或檔案已經存在但不是 `hearth` 寫的 | 把要的設定改進 `hearth.toml`，再 `hearth sync --force` |
 | `env-missing` | 選到的 server 需要的環境變數沒設，或 `command` 不在 PATH。只是警告，只印名稱 | 在啟動 agent 的 shell 裡 export 那個變數，或安裝那個指令 |
+
+## Subagent
+
+團隊在 `subagents/<name>.md` 寫 subagent 定義，改動走 PR；同一份同時給 Claude Code 和 Codex 用。每個人自己選要用哪些，預設全部不開：
+
+```sh
+hearth subagent enable subagent      # 個人檔
+hearth sync                          # 照選的 agent 產生 .claude/agents/、.codex/agents/
+hearth subagent list                 # 只讀；列出每個定義的狀態和不合格的原因
+hearth subagent disable subagent     # 下次 sync 刪掉產生過的檔
+```
+
+定義的格式是 Markdown 加 YAML frontmatter：
+
+```markdown
+---
+name: reviewer
+description: Reviews a diff for correctness first, then style.
+claude:
+  tools: Read, Grep, Glob
+  model: sonnet
+codex:
+  model_reasoning_effort: high
+  features:
+    shell_tool: false
+---
+
+You review diffs. Report each finding with its file and line.
+```
+
+| 部分 | 規則 |
+| --- | --- |
+| 檔名 | `subagents/` 第一層的 `<name>.md`；`_` 開頭的是模板，不會出現在清單 |
+| `name` | 必填，等於檔名去掉 `.md`；小寫英文字母開頭，只有小寫英數字、`_`、`-` |
+| `description` | 必填，不能是空的 |
+| `claude:`、`codex:` | 選填的 mapping，放各工具自己的欄位，照原樣轉過去，`hearth` 不檢查欄位名；不能有 `name`、`description`、`developer_instructions` |
+| 內文 | frontmatter 後面的內容，不能是空的；Claude 檔的內文，也是 Codex 檔的 `developer_instructions` |
+
+- frontmatter 只接受 `name`、`description`、`claude`、`codex` 四個 key，任何地方都不能用 YAML 的 anchor（`&x`）和 alias（`*x`）。
+- `claude` 產生 `.claude/agents/<name>.md`：`name`、`description`、`claude:` 的欄位照原本順序，最後是內文。值照轉，註解、引號樣式和 flow list 的寫法不保留。
+- `codex` 產生 `.codex/agents/<name>.toml`：`name`、`description`、`developer_instructions`，再接 `codex:` 的欄位。值只能是字串、整數、浮點數、布林和這些值的 list；巢狀 mapping 寫成 `features.shell_tool = false` 這種 dotted key。`null`、日期時間、非字串的 key、list 裡放 mapping 都算不合格。
+- **Codex 端還沒實測生效**：檔案照 Codex 官方文件產生，但 2026-11-18 用 Codex 0.162.1 試，spawn 時指名的角色沒有套用定義。名稱有 `-` 的 subagent 在 Codex 可能叫不到。
+- 不合格的定義不產生，`subagent list` 和 `doctor` 顯示原因，其他定義照常產生；`enable` 不合格或不存在的名字時報 `usage`，`hearth.local.toml` 不變。
+- 已經選了、之後才變不合格的（例如 PR 改壞 frontmatter），產生過的檔保持不動，`sync` 報 `subagent-invalid`、exit 1。
+- 定義被刪掉或改名、但還在個人清單裡的名字當成 `unknown`：`sync` 刪掉它產生過的檔，用 `hearth subagent disable <name>` 清掉。
+- 產生的檔跟 MCP 設定一樣記在 `.hearth/state.json`：被手改過的不覆寫也不刪，報 `generated-modified`，`hearth sync --force` 才覆寫；路徑上有 symlink 時報 `path-conflict`，加 `--force` 也不寫。
+- `subagents/` 是 symlink 或不是目錄時報 `path-conflict`、exit 2，什麼都不寫也不刪；不存在就當成沒有 subagent。
+- `doctor` 和 `subagent list` 也檢查已經取消、沒選的 agent 或來源已刪掉的 subagent 留下的產生檔：被手改過的報 `generated-modified`，跟 `sync` 一致。
+- 你自己放在 `.claude/agents/`、`.codex/agents/` 的其他檔，`hearth` 不碰；`.claude/agents/` 被 `.gitignore` 忽略，不會進版控。
+
+| 類別 | 意思 | 怎麼處理 |
+| --- | --- | --- |
+| `subagent-invalid` | `subagents/<name>.md` 不合上面的規則 | 照訊息修那個檔，開 PR |
+| `not-synced` | 選了，但產生的檔不存在或不是最新的。只是警告 | `hearth sync` |
 
 ## ssh 或 https
 
@@ -243,9 +297,10 @@ header_envs = { "X-Workspace" = "TRACKER_WORKSPACE" }
 | `memory/` | 團隊記憶：跨產品的決策和團隊習慣，不記系統規格，見 [`memory/README.md`](memory/README.md) |
 | `skills/` | 團隊自己寫的 skill 和模板，見 [`skills/README.md`](skills/README.md) |
 | `vendor/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth sync` 產生的外部 skill、內建 skill 和 link，不在版控內 |
-| `.mcp.json`、`.codex/` | `hearth sync` 產生的 MCP 設定，不在版控內 |
+| `.mcp.json`、`.codex/` | `hearth sync` 產生的 MCP 設定和 Codex 的 subagent 檔，不在版控內 |
+| `subagents/` | 團隊的 subagent 定義，見上面的「Subagent」 |
 | `agents/` | 派工給 agent 的 prompt 模板，以及記錄預設模型的 `models.json`，見 [`agents/README.md`](agents/README.md) |
-| `.claude/` | Claude Code 的共用設定（`settings.json`）和 subagent 定義（`agents/subagent.md`） |
+| `.claude/` | Claude Code 的共用設定（`settings.json`）；`hearth sync` 產生的 `agents/`、`skills/` 不在版控內 |
 | `workflows/` | 開發、code review、跨 repo 變更的流程，見 [`workflows/README.md`](workflows/README.md) |
 
 ## 工作方式
@@ -276,7 +331,7 @@ header_envs = { "X-Workspace" = "TRACKER_WORKSPACE" }
 claude --model opus --effort medium
 ```
 
-subagent 由 `.claude/agents/subagent.md` 明確指定 `model: sonnet`，不跟著主對話的 `/model` 切換。`agents/models.json` 是給人看的紀錄，沒有程式讀它。Codex、Grok 和其他工具要各自設定，這份設定控制不到它們。優先順序和怎麼固定版本，見 [`agents/README.md`](agents/README.md#模型設定claude-codeanthropic-api)。
+通用 subagent 由 `subagents/subagent.md` 的 `claude:` 明確指定 `model: sonnet`（要用的人先 `hearth subagent enable subagent`、`hearth sync`），不跟著主對話的 `/model` 切換。`agents/models.json` 是給人看的紀錄，沒有程式讀它。Codex、Grok 和其他工具要各自設定，這份設定控制不到它們。優先順序和怎麼固定版本，見 [`agents/README.md`](agents/README.md#模型設定claude-codeanthropic-api)。
 
 ### Claude Code 會不會讀到共同規則
 
@@ -327,7 +382,7 @@ rg <pattern> products/<name>
 ### 這一版不包含
 
 - 安裝、登入或設定 agent 工具。
-- 把 `agents/` 接到任何工具的自動載入位置。`.claude/agents/subagent.md` 是另外寫的一個定義，不是 `agents/` 的連結。skill 只有每個人選了、跑過 `hearth skill sync` 才會接到 `.claude/skills/`、`.agents/skills/`。
+- 把 `agents/` 接到任何工具的自動載入位置。`subagents/` 的定義由 `hearth sync` 轉成 `.claude/agents/`、`.codex/agents/` 的檔，不是 `agents/` 的連結。skill 只有每個人選了、跑過 `hearth skill sync` 才會接到 `.claude/skills/`、`.agents/skills/`。
 - quality-gate 的選擇（要跑哪些 lint、型別檢查、測試門檻）。產品各自照自己 repo 的規範。
 - LICENSE。
 - Windows 支援。

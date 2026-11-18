@@ -16,6 +16,7 @@ import (
 	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/scaffold"
 	"github.com/CTHua/hearth/internal/skill"
+	"github.com/CTHua/hearth/internal/subagent"
 	"github.com/CTHua/hearth/internal/version"
 )
 
@@ -97,6 +98,7 @@ func runDoctor(ctx context.Context, s streams, g globals, args []string) error {
 	}
 	// Before the git check returns: these need no git.
 	checkMCP(report, home)
+	checkSubagents(report, home)
 	if git == nil {
 		report.warn("checkouts not checked because git is missing")
 		return report.exit()
@@ -157,6 +159,37 @@ func checkMCP(report *doctorReport, home *config.Home) {
 			for _, warning := range row.Warnings() {
 				report.warn("[%s] %s: %s", apperr.EnvMissing, row.Name, warning)
 			}
+		}
+	}
+}
+
+// checkSubagents reports the chosen subagents, every invalid source file,
+// and every generated file sync would refuse to touch, chosen or not: an
+// invalid one that is chosen fails sync, one that is not is only a warning.
+func checkSubagents(report *doctorReport, home *config.Home) {
+	rows, err := subagent.Inspect(home)
+	if err != nil {
+		report.setup(err)
+		return
+	}
+	for _, row := range rows {
+		if row.Stale {
+			report.warn("[%s] %s: %s", apperr.Unknown, row.Name, subagent.StaleDetail(row.Name))
+		}
+		if row.Invalid != "" && !row.Enabled {
+			report.warn("[%s] %s: %s", subagent.InvalidCategory, row.Name, row.Invalid)
+		}
+		switch {
+		case row.State == subagent.Off, row.State == subagent.Stale:
+			continue
+		case row.State == subagent.Invalid && !row.Enabled:
+			continue
+		case row.State == subagent.OK:
+			report.ok("subagent %s", row.Name)
+		case row.State == subagent.NotSynced:
+			report.warn("[%s] %s: %s", row.State, row.Name, row.Detail)
+		default:
+			report.checkoutFailed(apperr.ForRepo(apperr.Category(row.State), row.Name, "%s", row.Detail))
 		}
 	}
 }

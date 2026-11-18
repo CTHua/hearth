@@ -4,6 +4,7 @@ package tomlstr
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -17,7 +18,11 @@ const (
 	assignment  = " = "
 	controlLast = 0x1f
 	deleteChar  = 0x7f
+	keySep      = "."
 )
+
+// bareKeyRE is what TOML accepts as a key without quotes.
+var bareKeyRE = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // escapes are the short escapes TOML basic strings define.
 var escapes = map[rune]string{
@@ -56,7 +61,25 @@ func Array(values []string) string {
 	for _, value := range values {
 		quoted = append(quoted, Quote(value))
 	}
-	return arrayOpen + strings.Join(quoted, itemSep) + arrayClose
+	return List(quoted)
+}
+
+// List returns items, each already written in TOML, as a one-line array.
+func List(items []string) string {
+	return arrayOpen + strings.Join(items, itemSep) + arrayClose
+}
+
+// Key returns path as a TOML key: one segment is a plain key, more are a
+// dotted key. A segment is quoted only when it cannot be bare.
+func Key(path ...string) string {
+	segments := make([]string, 0, len(path))
+	for _, segment := range path {
+		if !bareKeyRE.MatchString(segment) {
+			segment = Quote(segment)
+		}
+		segments = append(segments, segment)
+	}
+	return strings.Join(segments, keySep)
 }
 
 // InlineTable returns pairs, each a key and a string value, as a one-line

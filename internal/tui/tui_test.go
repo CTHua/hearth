@@ -18,6 +18,7 @@ import (
 	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/mcp"
 	"github.com/CTHua/hearth/internal/skill"
+	"github.com/CTHua/hearth/internal/subagent"
 	"github.com/CTHua/hearth/internal/tui"
 )
 
@@ -37,8 +38,11 @@ type fake struct {
 	repos   []core.RepoRow
 	skills  []skill.Row
 	servers []mcp.Row
-	calls   []string
-	loads   int
+	// subagents and subagentsErr are what ListSubagents returns.
+	subagents    []subagent.Row
+	subagentsErr error
+	calls        []string
+	loads        int
 	// enableErr is what EnableSkills returns; cloneFail lists repos Clone fails.
 	enableErr error
 	// mcpErr is what AddMCP returns.
@@ -217,6 +221,20 @@ func (f *fake) DisableMCP(names []string) ([]string, error) {
 
 func (f *fake) ListMCP() []mcp.Row {
 	return f.servers
+}
+
+func (f *fake) EnableSubagents(names []string) ([]string, error) {
+	f.record("EnableSubagents %v", names)
+	return names, nil
+}
+
+func (f *fake) DisableSubagents(names []string) ([]string, error) {
+	f.record("DisableSubagents %v", names)
+	return names, nil
+}
+
+func (f *fake) ListSubagents() ([]subagent.Row, error) {
+	return f.subagents, f.subagentsErr
 }
 
 func (f *fake) Sync(_ context.Context, force bool, out core.Output) (core.SyncResult, error) {
