@@ -88,15 +88,21 @@ func TestStrandedSwapKeepsOldCheckoutAndSaysWhere(t *testing.T) {
 }
 
 func TestOnlyUnsupportedSymlinkErrorsAreSymlinkUnavailable(t *testing.T) {
-	cases := map[error]bool{
-		syscall.ENOTSUP:    true,
-		syscall.EOPNOTSUPP: true,
-		syscall.EPERM:      true,
-		syscall.EACCES:     false,
-		syscall.EEXIST:     false,
-		syscall.EROFS:      false,
+	// A slice, not a map keyed by errno: ENOTSUP and EOPNOTSUPP are the
+	// same number on Linux, which a map literal rejects as a duplicate key.
+	cases := []struct {
+		errno syscall.Errno
+		want  bool
+	}{
+		{syscall.ENOTSUP, true},
+		{syscall.EOPNOTSUPP, true},
+		{syscall.EPERM, true},
+		{syscall.EACCES, false},
+		{syscall.EEXIST, false},
+		{syscall.EROFS, false},
 	}
-	for errno, want := range cases {
+	for _, c := range cases {
+		errno, want := c.errno, c.want
 		err := &os.LinkError{Op: "symlink", Old: "a", New: "b", Err: errno}
 		if got := symlinkUnsupported(err); got != want {
 			t.Errorf("%v: %v, want %v", errno, got, want)
