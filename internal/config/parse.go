@@ -112,16 +112,16 @@ func parseTeam(doc document) (Team, apperr.List) {
 		SchemaVersion: doc.values[keySchemaVersion].(int64),
 		MinVersion:    doc.values[brand.MinVersionKey].(string),
 	}
-	repoValues, repoProblems := decodeTable(doc, keyRepos, requiredFields)
+	repoValues, repoProblems := decodeTable(doc, keyRepos, requiredFields, optionalFields)
 	problems = append(problems, repoProblems...)
 	if repoValues != nil {
 		team.Repos = make([]Repo, len(repoValues.entries))
 		for i, v := range repoValues.entries {
-			team.Repos[i] = Repo{Name: v[FieldName], URL: v[FieldURL], Path: v[FieldPath], Branch: v[FieldBranch]}
+			team.Repos[i] = Repo{Name: v[FieldName], URL: v[FieldURL], Path: v[FieldPath], Branch: v[FieldBranch], Description: v[FieldDescription]}
 		}
 		problems = append(problems, located(doc, repoValues.reported, checkRepos(team.Repos, repoValues.reported, nil))...)
 	}
-	skillValues, skillProblems := decodeTable(doc, keySkills, skillFields)
+	skillValues, skillProblems := decodeTable(doc, keySkills, skillFields, nil)
 	problems = append(problems, skillProblems...)
 	if skillValues != nil {
 		team.Skills = make([]Skill, len(skillValues.entries))
@@ -156,10 +156,11 @@ type tableValues struct {
 	reported FieldErrors
 }
 
-// decodeTable reads the array of tables called key. It is nil, with no
+// decodeTable reads the array of tables called key, whose entries must set
+// every one of fields and may set any of optional. It is nil, with no
 // problems, when the key is absent, and nil with a problem when key is not
 // an array of tables.
-func decodeTable(doc document, key string, fields []string) (*tableValues, apperr.List) {
+func decodeTable(doc document, key string, fields []string, optional []string) (*tableValues, apperr.List) {
 	raw, present := doc.values[key]
 	if !present {
 		return nil, nil
@@ -170,7 +171,7 @@ func decodeTable(doc document, key string, fields []string) (*tableValues, apper
 	}
 	values := &tableValues{entries: make([]map[string]string, len(tables))}
 	for i, table := range tables {
-		entry, entryProblems := decodeEntry(key, fields, i, table)
+		entry, entryProblems := decodeEntry(key, fields, optional, i, table)
 		values.entries[i] = entry
 		values.reported = append(values.reported, entryProblems...)
 	}
@@ -197,11 +198,13 @@ func tableEntries(doc document, key string, raw any) ([]map[string]any, *apperr.
 	return tables, nil
 }
 
-func decodeEntry(table string, fields []string, index int, entry map[string]any) (map[string]string, FieldErrors) {
+// decodeEntry reads the string fields of one entry. An absent optional
+// field is left out of the values, which reads as the empty string.
+func decodeEntry(table string, fields []string, optional []string, index int, entry map[string]any) (map[string]string, FieldErrors) {
 	var problems FieldErrors
 	var extra []string
 	for key := range entry {
-		if !slices.Contains(fields, key) {
+		if !slices.Contains(fields, key) && !slices.Contains(optional, key) {
 			extra = append(extra, key)
 		}
 	}
@@ -210,10 +213,12 @@ func decodeEntry(table string, fields []string, index int, entry map[string]any)
 		problems = append(problems, FieldError{Table: table, Index: index, Field: key, Message: "unknown key"})
 	}
 	values := map[string]string{}
-	for _, field := range fields {
+	for _, field := range append(slices.Clone(fields), optional...) {
 		value, present := entry[field]
 		if !present {
-			problems = append(problems, FieldError{Table: table, Index: index, Field: field, Message: "missing"})
+			if !slices.Contains(optional, field) {
+				problems = append(problems, FieldError{Table: table, Index: index, Field: field, Message: "missing"})
+			}
 			continue
 		}
 		text, isString := value.(string)

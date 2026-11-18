@@ -3,7 +3,10 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/CTHua/hearth/internal/giturl"
 )
@@ -14,15 +17,21 @@ const (
 	FieldURL    = "url"
 	FieldPath   = "path"
 	FieldBranch = "branch"
+	// FieldDescription is the only optional field of a [[repos]] entry.
+	FieldDescription = "description"
 )
 
 // ProductsDir is the directory every repo path must be under.
 const ProductsDir = "products"
 
+// DescriptionMaxLength is the longest description, in Unicode code points.
+const DescriptionMaxLength = 200
+
 const pathSeparator = "/"
 
 var (
 	requiredFields = []string{FieldName, FieldURL, FieldPath, FieldBranch}
+	optionalFields = []string{FieldDescription}
 	segmentRE      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	branchRE       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
 )
@@ -71,6 +80,21 @@ func valueProblem(field string, value string) string {
 // when it can.
 func NameProblem(name string) string {
 	return fieldProblem(FieldName, name)
+}
+
+// DescriptionProblem explains why value cannot be a repo description; it is
+// empty when it can. The empty string is allowed and means no description.
+func DescriptionProblem(value string) string {
+	if strings.ContainsFunc(value, unicode.IsControl) {
+		return fmt.Sprintf("%q must be one line without control characters such as newlines or tabs", value)
+	}
+	if strings.TrimSpace(value) != value {
+		return fmt.Sprintf("%q must not start or end with whitespace", value)
+	}
+	if length := utf8.RuneCountInString(value); length > DescriptionMaxLength {
+		return fmt.Sprintf("is %d characters, longer than %d", length, DescriptionMaxLength)
+	}
+	return ""
 }
 
 func segmentProblem(value string) string {
@@ -159,12 +183,30 @@ func checkRepos(repos []Repo, reported FieldErrors, pending map[fieldKey]bool) F
 		problem: valueProblem,
 	}
 	valid, problems := checkEntries(table, len(repos), reported, pending)
+	problems = append(problems, descriptionProblems(repos, reported)...)
 	names := make([]string, len(repos))
 	for i, repo := range repos {
 		names[i] = repo.Name
 	}
 	problems = append(problems, duplicateNames(keyRepos, names, valid)...)
 	problems = append(problems, pathConflicts(repos, valid)...)
+	return problems
+}
+
+// descriptionProblems checks the optional description apart from
+// checkEntries, which treats every field as required. A description that
+// already failed decoding is not checked again.
+func descriptionProblems(repos []Repo, reported FieldErrors) FieldErrors {
+	var problems FieldErrors
+	for i, repo := range repos {
+		failed := slices.ContainsFunc(reported, func(e FieldError) bool { return e.Index == i && e.Field == FieldDescription })
+		if failed {
+			continue
+		}
+		if message := DescriptionProblem(repo.Description); message != "" {
+			problems = append(problems, FieldError{Table: keyRepos, Index: i, Field: FieldDescription, Message: message})
+		}
+	}
 	return problems
 }
 

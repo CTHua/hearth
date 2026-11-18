@@ -26,6 +26,7 @@ const (
 	hintCommand     = "for a stdio server: command args"
 	hintMCPURL      = "or an http server"
 	hintEnv         = "VAR, VAR (names only; stdio only)"
+	hintOptional    = "optional"
 	pathSep         = "/"
 	noteRepo        = "c clones it later."
 	noteSkill       = "a blank commit pins the remote's HEAD."
@@ -39,6 +40,7 @@ const (
 	labelName       = "Name"
 	labelPath       = "Path"
 	labelBranch     = "Branch"
+	labelDesc       = "Description"
 	labelSubdir     = "Subdir"
 	labelCommit     = "Commit"
 	labelCommand    = "Command"
@@ -67,7 +69,7 @@ func newForm(title string, note string, labels []string, hints func([]string) []
 
 // repoForm asks for a new repo; blank optional fields get core's defaults.
 func repoForm() *form {
-	return newForm(formTitleRepo, noteRepo, []string{labelURL, labelName, labelPath, labelBranch}, func(values []string) []string {
+	return newForm(formTitleRepo, noteRepo, []string{labelURL, labelName, labelPath, labelBranch, labelDesc}, func(values []string) []string {
 		name := urlName(values[0])
 		path := hintFromURL
 		if typed := strings.TrimSpace(values[1]); typed != "" {
@@ -76,7 +78,7 @@ func repoForm() *form {
 		if name != hintFromURL {
 			path = config.ProductsDir + pathSep + name
 		}
-		return []string{hintURL, name, path, hintAskRemote}
+		return []string{hintURL, name, path, hintAskRemote, hintOptional}
 	})
 }
 

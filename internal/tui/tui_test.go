@@ -95,7 +95,7 @@ func show(value *string) string {
 func (f *fake) Home() config.Home { return f.home }
 
 func (f *fake) AddRepo(_ context.Context, p core.AddRepoParams) (core.AddRepoResult, error) {
-	f.record("AddRepo %s name=%s path=%s branch=%s", p.URL, show(p.Name), show(p.Path), show(p.Branch))
+	f.record("AddRepo %s name=%s path=%s branch=%s description=%s", p.URL, show(p.Name), show(p.Path), show(p.Branch), show(p.Description))
 	return core.AddRepoResult{Repo: config.Repo{Name: "new", Path: "products/new", Branch: "main"}}, nil
 }
 
@@ -328,7 +328,7 @@ func TestRepoAddWithBranchRunsNowAndShowsHint(t *testing.T) {
 	if cmd := press(m, "enter"); cmd != nil {
 		t.Error("a repo add with a branch ran in the background")
 	}
-	expectCalls(t, f, "AddRepo "+newURL+" name=new path=<nil> branch=main")
+	expectCalls(t, f, "AddRepo "+newURL+" name=new path=<nil> branch=main description=<nil>")
 	expectScreen(t, m, "added new -> products/new (main)", brand.TeamFileChangedHint)
 }
 
@@ -342,11 +342,25 @@ func TestRepoAddWithoutBranchRunsInBackground(t *testing.T) {
 	expectCalls(t, f)
 	loads := f.loads
 	finish(t, m, cmd)
-	expectCalls(t, f, "AddRepo "+newURL+" name=<nil> path=<nil> branch=<nil>")
+	expectCalls(t, f, "AddRepo "+newURL+" name=<nil> path=<nil> branch=<nil> description=<nil>")
 	expectScreen(t, m, brand.TeamFileChangedHint)
 	if f.loads == loads {
 		t.Error("the lists were not read again after the action")
 	}
+}
+
+func TestRepoAddPassesDescription(t *testing.T) {
+	f := newFake()
+	m := newModel(f)
+	press(m, "2", "a")
+	expectScreen(t, m, "Description", "optional")
+	typeText(m, newURL)
+	press(m, "tab", "tab", "tab")
+	typeText(m, "main")
+	press(m, "tab")
+	typeText(m, "Orders API")
+	press(m, "enter")
+	expectCalls(t, f, "AddRepo "+newURL+" name=<nil> path=<nil> branch=main description=Orders API")
 }
 
 func TestRepoAddNeedsURL(t *testing.T) {
@@ -587,7 +601,7 @@ func TestPasteDropsLineBreaks(t *testing.T) {
 	press(m, "tab", "tab", "tab")
 	typeText(m, "main")
 	press(m, "enter")
-	expectCalls(t, f, "AddRepo "+newURL+" name=<nil> path=<nil> branch=main")
+	expectCalls(t, f, "AddRepo "+newURL+" name=<nil> path=<nil> branch=main description=<nil>")
 }
 
 func TestSyncKeepsTheSkillSummary(t *testing.T) {

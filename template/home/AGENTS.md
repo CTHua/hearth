@@ -7,7 +7,7 @@
 ## hearth（這一段由 hearth 管理，之後的版本會整段重寫）
 - 安裝：`go install github.com/CTHua/hearth/cmd/hearth@latest`，其他方式見 https://github.com/CTHua/hearth 。升級 hearth 之後跑 `hearth upgrade`，更新這一段和 `.gitignore` 的標記區段。
 - clone 全部產品：`hearth clone`；看每個產品的狀態：`hearth repo list`；檢查環境和設定：`hearth doctor`；使用者在終端機不帶參數跑 `hearth` 會開互動介面，agent 不要跑。
-- 產品清單在 `hearth.toml`。要新增或移除產品時，請使用者自己跑 `hearth repo add <url>` / `hearth repo remove <name>`，不要手改 `hearth.toml`；agent 的 sandbox 可能擋掉寫入。
+- 產品清單在 `hearth.toml`，每個產品的 `description` 說明它做什麼。要新增、移除產品或改 `description` 時，請使用者自己跑 `hearth repo add <url> [--description <text>]` / `hearth repo remove <name>` / `hearth repo describe <name> <text>`，不要手改 `hearth.toml`；agent 的 sandbox 可能擋掉寫入。
 - 每個人的 ssh／https 選擇在 `hearth.local.toml`（不進版控），用 `hearth config protocol` 查看或設定。
 - skill、MCP server 和 subagent：團隊清單用 `hearth skill add <url>` / `remove <name>`、`hearth mcp add <name>` / `remove <name>`，subagent 是 `subagents/<name>.md` 檔案，改檔走 PR；個人選擇用 `hearth skill enable` / `disable <name>`、`hearth mcp enable` / `disable <name>`、`hearth subagent enable` / `disable <name>`、`hearth config agents`，再由使用者跑 `hearth sync`；`hearth skill list`、`hearth mcp list`、`hearth subagent list` 看狀態。
 <!-- hearth:end -->
@@ -23,7 +23,7 @@ Home Repo 是工程團隊的共同工作入口，集中放團隊記憶、skills�
 | 路徑 | 內容 | 什麼時候讀 |
 | --- | --- | --- |
 | `README.md` | 環境需求、快速開始、`hearth` 指令和錯誤處理 | 第一次設定，或 `hearth` 出錯 |
-| `hearth.toml` | 產品 repo 清單（`[[repos]]`）和釘在 commit 的外部 skill（`[[skills]]`） | 要找產品 repo 或外部 skill |
+| `hearth.toml` | 產品 repo 清單（`[[repos]]`，`description` 說明每個產品做什麼）和釘在 commit 的外部 skill（`[[skills]]`） | 要判斷任務屬於哪個產品，或找產品 repo、外部 skill |
 | `hearth.local.toml` | 個人設定：`protocol`（`ssh` 或 `https`）、`agents`、`skills`、`mcp`、`subagents`。不在版控內 | 要知道使用者用哪個協定 clone、選了哪些 skill、MCP server 和 subagent |
 | `products/` | 產品 repo 的 checkout，位置是 `hearth.toml` 裡該產品的 `path`。不在 Home Repo 的版控內 | 任務指定的那個產品 |
 | `memory/decisions/` | 經確認的跨產品決策 | 任務涉及跨產品的設計或取捨 |
@@ -49,7 +49,7 @@ Home Repo 是工程團隊的共同工作入口，集中放團隊記憶、skills�
 
 ## 操作產品 repo
 
-1. 產品清單以 `hearth.toml` 為準，checkout 的位置看該項目的 `path`。checkout 不存在時，執行 `hearth clone <name>`。它不會更新已經存在的 checkout。
+1. 產品清單以 `hearth.toml` 為準。先看各項目的 `description` 判斷任務屬於哪個產品（沒寫的就看 `name`，判斷不了就問）；checkout 的位置看該項目的 `path`。checkout 不存在時，執行 `hearth clone <name>`。它不會更新已經存在的 checkout。
 2. 動手前先讀該產品 repo 適用的 `AGENTS.md` 或 `CLAUDE.md`：repo 根目錄的，以及你要改的子目錄裡的。
 3. 執行 Git、測試、build 之前，確認操作的是正確的 repo：
    - `git -C <path> rev-parse --show-toplevel`

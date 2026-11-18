@@ -62,11 +62,12 @@ go build -ldflags "-X github.com/CTHua/hearth/internal/version.Version=0.1.0" -o
 ```sh
 hearth init team-home             # needs a missing or empty directory; runs git init, does not commit
 cd team-home
-hearth repo add git@git.example.com:acme/web-app.git
+hearth repo add git@git.example.com:acme/web-app.git --description "Customer-facing web app"
 hearth repo add https://git.example.com/acme/api.git --name api-service --branch develop
+hearth repo describe api-service "Orders API"
 ```
 
-`repo add` takes the name and path from the URL (`products/<name>`) and asks the remote for its default branch when you leave out `--branch`. Commit the result and push it to your Git host like any other repo.
+`repo add` takes the name and path from the URL (`products/<name>`) and asks the remote for its default branch when you leave out `--branch`. The optional `description` says what each product is for, so an agent can tell which product a task belongs to; set or change it later with `repo describe`, and `doctor` warns about repos without one. Commit the result and push it to your Git host like any other repo.
 
 ### 2. Clone the products (every teammate)
 
@@ -79,9 +80,9 @@ hearth repo list
 ```
 
 ```text
-NAME           PATH                    BRANCH   STATUS   DETAIL
-web-app        products/web-app        main     ok
-api-service    products/api-service    develop  ok
+NAME         PATH                  BRANCH   STATUS  DETAIL  DESCRIPTION
+web-app      products/web-app      main     ok              Customer-facing web app
+api-service  products/api-service  develop  ok              Orders API
 ```
 
 Each product is its own Git repo under `products/`. The Home Repo ignores that directory.
@@ -136,7 +137,7 @@ The add form for MCP servers takes a command, URL, and environment variable name
 
 | Group | Commands |
 | --- | --- |
-| Repos | `repo add`, `repo remove`, `repo list`, `repo fix-remote`, `clone` |
+| Repos | `repo add`, `repo remove`, `repo describe`, `repo list`, `repo fix-remote`, `clone` |
 | Skills | `skill add`, `skill update`, `skill remove`, `skill enable`, `skill disable`, `skill sync`, `skill list` |
 | MCP servers | `mcp add`, `mcp remove`, `mcp enable`, `mcp disable`, `mcp sync`, `mcp list` |
 | Subagents | `subagent enable`, `subagent disable`, `subagent sync`, `subagent list` |

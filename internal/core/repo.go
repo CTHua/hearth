@@ -26,11 +26,13 @@ const (
 // AddRepoParams describes a new [[repos]] entry. A nil field was not given:
 // Name defaults to the URL's last segment, Path to products/<name>, and
 // Branch is asked from the remote, which may first detect the protocol.
+// Description is trimmed; nil or blank leaves the entry without one.
 type AddRepoParams struct {
-	URL    string
-	Name   *string
-	Path   *string
-	Branch *string
+	URL         string
+	Name        *string
+	Path        *string
+	Branch      *string
+	Description *string
 }
 
 // AddRepoResult is the entry that was added. DetectedProtocol is set when
@@ -88,11 +90,15 @@ func newRepo(p AddRepoParams) (config.Repo, error) {
 	if p.Branch != nil {
 		branch = *p.Branch
 	}
-	return config.Repo{Name: name, URL: p.URL, Path: path, Branch: branch}, nil
+	description := ""
+	if p.Description != nil {
+		description = strings.TrimSpace(*p.Description)
+	}
+	return config.Repo{Name: name, URL: p.URL, Path: path, Branch: branch, Description: description}, nil
 }
 
 // repoFlags are the repo add flags that set a field of the same name.
-var repoFlags = []string{config.FieldName, config.FieldPath, config.FieldBranch}
+var repoFlags = []string{config.FieldName, config.FieldPath, config.FieldBranch, config.FieldDescription}
 
 // addProblems turns validation problems of the new entry into one usage
 // error that names the flag to fix.
@@ -212,6 +218,35 @@ func (s *Service) RemoveRepo(name string) (RemoveRepoResult, error) {
 	}
 	kept := exists(filepath.Join(s.home.Root, filepath.FromSlash(repo.Path)))
 	return RemoveRepoResult{Repo: repo, CheckoutKept: kept}, nil
+}
+
+// DescribeRepoResult is the entry after describe and whether the team file
+// was rewritten; it is not when the description was already the same.
+type DescribeRepoResult struct {
+	Repo    config.Repo
+	Changed bool
+}
+
+// DescribeRepo sets the description of a repo in the team file; a blank
+// description removes it. It needs no git and contacts no remote.
+func (s *Service) DescribeRepo(name string, description string) (DescribeRepoResult, error) {
+	repo, found := s.home.Team.Find(name)
+	if !found {
+		return DescribeRepoResult{}, unknownNames([]string{name}, s.home.Team)
+	}
+	text := strings.TrimSpace(description)
+	if repo.Description == text {
+		return DescribeRepoResult{Repo: repo}, nil
+	}
+	team, _, err := s.home.Team.WithDescription(name, text)
+	if err != nil {
+		return DescribeRepoResult{}, entryProblems("describe repo", err, nil)
+	}
+	if err := s.saveTeam(team); err != nil {
+		return DescribeRepoResult{}, err
+	}
+	repo.Description = text
+	return DescribeRepoResult{Repo: repo, Changed: true}, nil
 }
 
 func exists(path string) bool {

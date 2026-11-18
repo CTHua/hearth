@@ -341,6 +341,134 @@ func TestCheckNewSkipsOnlyPendingFields(t *testing.T) {
 	}
 }
 
+func TestTeamWithoutDescriptionRoundTripsByteForByte(t *testing.T) {
+	written := brand.TeamFileHeader + "\n" + header + webApp
+	root := writeFiles(t, written, "")
+	home, err := config.Load(root, released)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if home.Team.Repos[0].Description != "" {
+		t.Errorf("description = %q, want none", home.Team.Repos[0].Description)
+	}
+	if err := config.WriteTeam(root, home.Team); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, brand.TeamFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != written {
+		t.Errorf("team file:\n%s\nwant:\n%s", data, written)
+	}
+}
+
+func TestDescriptionRoundTripsAfterBranch(t *testing.T) {
+	description := `訂單 "API" for the shop`
+	team := header + strings.Replace(webApp, "branch = \"main\"\n", "branch = \"main\"\ndescription = '"+description+"'\n", 1)
+	root := writeFiles(t, team, "")
+	home, err := config.Load(root, released)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := home.Team.Repos[0].Description; got != description {
+		t.Fatalf("description = %q, want %q", got, description)
+	}
+	if err := config.WriteTeam(root, home.Team); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, brand.TeamFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "branch = \"main\"\ndescription = \"訂單 \\\"API\\\" for the shop\"\n"; !strings.HasSuffix(string(data), want) {
+		t.Errorf("team file:\n%s\nwant it to end with:\n%s", data, want)
+	}
+	reloaded, err := config.Load(root, released)
+	if err != nil || !reflect.DeepEqual(reloaded.Team, home.Team) {
+		t.Errorf("round trip: %+v, %v; want %+v", reloaded.Team, err, home.Team)
+	}
+}
+
+func TestEmptyDescriptionIsNoDescription(t *testing.T) {
+	team := header + strings.Replace(webApp, "branch = \"main\"\n", "branch = \"main\"\ndescription = \"\"\n", 1)
+	root := writeFiles(t, team, "")
+	home, err := config.Load(root, released)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.WriteTeam(root, home.Team); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, brand.TeamFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), config.FieldDescription) {
+		t.Errorf("empty description written back:\n%s", data)
+	}
+}
+
+func TestDescriptionRules(t *testing.T) {
+	withDescription := func(value string) string {
+		return header + strings.Replace(webApp, "branch = \"main\"\n", "branch = \"main\"\ndescription = "+value+"\n", 1)
+	}
+	tooLong := `"` + strings.Repeat("字", config.DescriptionMaxLength+1) + `"`
+	cases := map[string]string{
+		"number":           "1",
+		"newline":          `"one\ntwo"`,
+		"tab":              `"one\ttwo"`,
+		"leading space":    `" web"`,
+		"trailing space":   `"web "`,
+		"over the maximum": tooLong,
+	}
+	for label, value := range cases {
+		lines, categories := loadErrors(t, writeFiles(t, withDescription(value), ""), released)
+		if !categories[apperr.Config] || !strings.Contains(lines, brand.TeamFile+": repos[0].description: ") {
+			t.Errorf("%s: %s", label, lines)
+		}
+	}
+	longest := `"` + strings.Repeat("字", config.DescriptionMaxLength) + `"`
+	if _, err := config.Load(writeFiles(t, withDescription(longest), ""), released); err != nil {
+		t.Errorf("%d characters: %v", config.DescriptionMaxLength, err)
+	}
+}
+
+func TestSkillsStillRejectDescription(t *testing.T) {
+	skill := header + "\n[[skills]]\nname = \"pdf\"\nurl = \"https://git.example.invalid/acme/skills.git\"\ncommit = \"0123456789abcdef0123456789abcdef01234567\"\n"
+	lines, _ := loadErrors(t, writeFiles(t, skill+"subdir = \"pdf\"\ndescription = \"x\"\n", ""), released)
+	if !strings.Contains(lines, "skills[0].description: unknown key") {
+		t.Errorf("skill with a description: %s", lines)
+	}
+	lines, _ = loadErrors(t, writeFiles(t, skill, ""), released)
+	if !strings.Contains(lines, "skills[0].subdir: missing") {
+		t.Errorf("skill without subdir: %s", lines)
+	}
+}
+
+func TestWithDescription(t *testing.T) {
+	home, err := config.Load(writeFiles(t, header+webApp, ""), released)
+	if err != nil {
+		t.Fatal(err)
+	}
+	team, found, err := home.Team.WithDescription("web-app", "Web app")
+	if err != nil || !found || team.Repos[0].Description != "Web app" || home.Team.Repos[0].Description != "" {
+		t.Fatalf("set: %+v, %v, %v; original %+v", team, found, err, home.Team)
+	}
+	cleared, _, err := team.WithDescription("web-app", "")
+	if err != nil || cleared.Repos[0].Description != "" {
+		t.Errorf("clear: %+v, %v", cleared, err)
+	}
+	if _, found, _ := home.Team.WithDescription("nope", "x"); found {
+		t.Error("unknown name reported as found")
+	}
+	_, _, err = home.Team.WithDescription("web-app", "a\nb")
+	var problems config.FieldErrors
+	if !errors.As(err, &problems) || len(problems) != 1 || problems[0].Field != config.FieldDescription {
+		t.Errorf("bad description: %v", err)
+	}
+}
+
 func TestFindRootWalksUp(t *testing.T) {
 	root := writeFiles(t, header, "")
 	nested := filepath.Join(root, "products", "web-app", "src")

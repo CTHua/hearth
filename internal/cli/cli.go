@@ -28,9 +28,12 @@ commands:
                              terminals
   init <dir>                 create a new home repo in a missing or empty <dir>
   clone [<name>...]          clone the listed repos that are not cloned yet
-  repo add <url> [--name <name>] [--path <path>] [--branch <branch>]
+  repo add <url> [--name <name>] [--path <path>] [--branch <branch>] [--description <text>]
                              add a repo to %[2]s
   repo remove <name>         remove a repo from %[2]s; the checkout is kept
+  repo describe <name> <text>
+                             set what a repo is for in %[2]s; an empty
+                             <text> removes it
   repo list                  show every repo and the state of its checkout
   repo fix-remote [<name>...]
                              point origin at the expected URL when only the

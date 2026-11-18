@@ -22,12 +22,14 @@ const SchemaVersion = 1
 // regardless of which build runs init.
 const MinVersion = "0.1.0"
 
-// Repo is one [[repos]] entry of the team file.
+// Repo is one [[repos]] entry of the team file. Description is optional; it
+// is empty when the entry has none, and the key is then not written.
 type Repo struct {
-	Name   string `toml:"name"`
-	URL    string `toml:"url"`
-	Path   string `toml:"path"`
-	Branch string `toml:"branch"`
+	Name        string `toml:"name"`
+	URL         string `toml:"url"`
+	Path        string `toml:"path"`
+	Branch      string `toml:"branch"`
+	Description string `toml:"description,omitempty"`
 }
 
 func (r Repo) field(name string) string {
@@ -40,6 +42,8 @@ func (r Repo) field(name string) string {
 		return r.Path
 	case FieldBranch:
 		return r.Branch
+	case FieldDescription:
+		return r.Description
 	}
 	return ""
 }
@@ -135,6 +139,23 @@ func (t Team) Without(name string) (Team, bool) {
 	next := t
 	next.Repos = slices.DeleteFunc(slices.Clone(t.Repos), func(r Repo) bool { return r.Name == name })
 	return next, len(next.Repos) != len(t.Repos)
+}
+
+// WithDescription returns t with the description of the repo called name
+// replaced, and whether that repo exists; an empty description removes it.
+// The error is FieldErrors when description breaks a rule.
+func (t Team) WithDescription(name string, description string) (Team, bool, error) {
+	index := slices.IndexFunc(t.Repos, func(r Repo) bool { return r.Name == name })
+	if index < 0 {
+		return t, false, nil
+	}
+	next := t
+	next.Repos = slices.Clone(t.Repos)
+	next.Repos[index].Description = description
+	if problems := checkRepos(next.Repos, nil, nil); len(problems) > 0 {
+		return t, true, problems
+	}
+	return next, true, nil
 }
 
 // WithProtocol returns p with protocol set, starting a new personal file at

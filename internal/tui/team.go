@@ -68,7 +68,7 @@ func (m *Model) submitRepo(values []string) (tea.Cmd, error) {
 	if url == "" {
 		return nil, apperr.New(apperr.Usage, msgURLRequired)
 	}
-	params := core.AddRepoParams{URL: url, Name: optional(values[1]), Path: optional(values[2]), Branch: optional(values[3])}
+	params := core.AddRepoParams{URL: url, Name: optional(values[1]), Path: optional(values[2]), Branch: optional(values[3]), Description: optional(values[4])}
 	add := func(ctx context.Context) ([]string, error) {
 		result, err := m.actions.AddRepo(ctx, params)
 		lines := detectedLines(result.DetectedProtocol)

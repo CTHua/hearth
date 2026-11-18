@@ -11,24 +11,26 @@ import (
 )
 
 const (
-	flagName   = "name"
-	flagPath   = "path"
-	flagBranch = "branch"
+	flagName        = "name"
+	flagPath        = "path"
+	flagBranch      = "branch"
+	flagDescription = "description"
 )
 
 func runRepo(ctx context.Context, s streams, g globals, args []string) error {
 	subcommands := map[string]command{
 		"add":        runRepoAdd,
 		"remove":     runRepoRemove,
+		"describe":   runRepoDescribe,
 		"list":       runRepoList,
 		"fix-remote": runFixRemote,
 	}
 	if len(args) == 0 {
-		return apperr.New(apperr.Usage, "repo needs a subcommand: add, remove, list or fix-remote")
+		return apperr.New(apperr.Usage, "repo needs a subcommand: add, remove, describe, list or fix-remote")
 	}
 	run, found := subcommands[args[0]]
 	if !found {
-		return apperr.New(apperr.Usage, "unknown repo subcommand %q; choose add, remove, list or fix-remote", args[0])
+		return apperr.New(apperr.Usage, "unknown repo subcommand %q; choose add, remove, describe, list or fix-remote", args[0])
 	}
 	return run(ctx, s, g, args[1:])
 }
@@ -38,12 +40,13 @@ func runRepoAdd(ctx context.Context, s streams, g globals, args []string) error 
 	name := fs.String(flagName, "", "")
 	path := fs.String(flagPath, "", "")
 	branch := fs.String(flagBranch, "", "")
+	description := fs.String(flagDescription, "", "")
 	positional, help, err := parseArgs(fs, args)
 	if err != nil {
 		return err
 	}
 	if help {
-		fmt.Fprintf(s.out, "usage: %s repo add <url> [--name <name>] [--path <path>] [--branch <branch>]\n", brand.Name)
+		fmt.Fprintf(s.out, "usage: %s repo add <url> [--name <name>] [--path <path>] [--branch <branch>] [--description <text>]\n", brand.Name)
 		return nil
 	}
 	if len(positional) != 1 {
@@ -55,10 +58,11 @@ func runRepoAdd(ctx context.Context, s streams, g globals, args []string) error 
 	}
 	given := setFlags(fs)
 	params := core.AddRepoParams{
-		URL:    positional[0],
-		Name:   givenValue(given, flagName, name),
-		Path:   givenValue(given, flagPath, path),
-		Branch: givenValue(given, flagBranch, branch),
+		URL:         positional[0],
+		Name:        givenValue(given, flagName, name),
+		Path:        givenValue(given, flagPath, path),
+		Branch:      givenValue(given, flagBranch, branch),
+		Description: givenValue(given, flagDescription, description),
 	}
 	result, err := core.New(home).AddRepo(ctx, params)
 	printDetected(s, result.DetectedProtocol)
@@ -106,6 +110,45 @@ func runRepoRemove(_ context.Context, s streams, g globals, args []string) error
 	return nil
 }
 
+func runRepoDescribe(_ context.Context, s streams, g globals, args []string) error {
+	fs := newFlagSet("repo describe")
+	positional, help, err := parseArgs(fs, args)
+	if err != nil {
+		return err
+	}
+	if help {
+		fmt.Fprintf(s.out, "usage: %s repo describe <name> <text>\n", brand.Name)
+		fmt.Fprintln(s.out, "an empty <text> removes the description")
+		return nil
+	}
+	if len(positional) != 2 {
+		return apperr.New(apperr.Usage, "repo describe takes exactly a name and a text; pass \"\" to remove the description")
+	}
+	home, err := loadHome(s, g)
+	if err != nil {
+		return err
+	}
+	result, err := core.New(home).DescribeRepo(positional[0], positional[1])
+	if err != nil {
+		return err
+	}
+	repo := result.Repo
+	switch {
+	case !result.Changed && repo.Description == "":
+		fmt.Fprintf(s.out, "unchanged %s: it has no description\n", repo.Name)
+		return nil
+	case !result.Changed:
+		fmt.Fprintf(s.out, "unchanged %s: the description is already %q\n", repo.Name, repo.Description)
+		return nil
+	case repo.Description == "":
+		fmt.Fprintf(s.out, "removed the description of %s\n", repo.Name)
+	default:
+		fmt.Fprintf(s.out, "described %s: %s\n", repo.Name, repo.Description)
+	}
+	fmt.Fprintln(s.out, brand.TeamFileChangedHint)
+	return nil
+}
+
 func runRepoList(ctx context.Context, s streams, g globals, args []string) error {
 	fs := newFlagSet("repo list")
 	positional, help, err := parseArgs(fs, args)
@@ -132,10 +175,10 @@ func runRepoList(ctx context.Context, s streams, g globals, args []string) error
 		return nil
 	}
 	table := tabwriter.NewWriter(s.out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(table, "NAME\tPATH\tBRANCH\tSTATUS\tDETAIL")
+	fmt.Fprintln(table, "NAME\tPATH\tBRANCH\tSTATUS\tDETAIL\tDESCRIPTION")
 	for _, row := range rows {
 		repo := row.Repo
-		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\n", repo.Name, repo.Path, repo.Branch, row.Status.State, row.Status.Detail)
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", repo.Name, repo.Path, repo.Branch, row.Status.State, row.Status.Detail, repo.Description)
 	}
 	return table.Flush()
 }

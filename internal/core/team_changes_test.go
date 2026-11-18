@@ -120,6 +120,15 @@ func TestTeamChangesSkillsAndServers(t *testing.T) {
 	})
 }
 
+func TestTeamChangesDescriptionOnlyIsModified(t *testing.T) {
+	s := homeIn(t, "", true, teamHeader+repoA+repoB, teamHeader+repoA+repoB)
+	result, err := s.DescribeRepo("a", "Customer-facing web app")
+	if err != nil || !result.Changed {
+		t.Fatalf("describe: %+v, %v", result, err)
+	}
+	expectChanges(t, s, []core.TeamChange{{Table: core.TableRepos, Name: "a", Kind: core.Modified}})
+}
+
 const pdfSkillEntry = "\n[[skills]]\nname = \"pdf\"\nurl = \"https://git.example.invalid/acme/skills.git\"\ncommit = \"0123456789abcdef0123456789abcdef01234567\"\nsubdir = \"pdf\"\n"
 
 func TestTeamChangesWithNothingToCompare(t *testing.T) {

@@ -44,6 +44,7 @@ name = "web-app"
 url = "git@git.example.invalid:acme/web-app.git"
 path = "products/web-app"
 branch = "main"
+description = "給客戶用的網頁前端"
 ```
 
 | 欄位 | 規則 |
@@ -52,8 +53,9 @@ branch = "main"
 | `url` | clone URL，只收 `git@<host>:<path>`、`ssh://git@<host>/<path>`、`https://<host>/<path>` 三種寫法 |
 | `path` | 相對 Home Repo 的路徑，必須在 `products/` 底下，每一段的規則同 `name`。不分大小寫不得重複，也不得是另一個 `path` 的上層或下層 |
 | `branch` | clone 時 checkout 的分支。必須是分支，不能是 tag |
+| `description` | 選填。這個產品做什麼，agent 靠它判斷任務屬於哪個產品。一行字，可以用中文，不能有換行、tab 等控制字元，前後不能有空白，最長 200 個字元。沒寫或空字串代表沒有 |
 
-- 四個欄位都必填，不能有其他欄位。
+- `name`、`url`、`path`、`branch` 四個欄位必填，`description` 選填，不能有其他欄位。`hearth doctor` 會提醒沒有 `description` 的產品。
 - `hearth` 改這個檔案時會整個重寫，只留第一行的註解；自己加的註解會消失，說明請寫在 PR 或這份 README。
 - `min_hearth_version` 比你的 `hearth` 新，或 `schema_version` 比你的 `hearth` 支援的新時，指令會報 `version`、exit 2，什麼都不做。升級 `hearth` 即可。
 
@@ -61,11 +63,13 @@ branch = "main"
 
 ```sh
 hearth repo add git@git.example.invalid:acme/web-app.git            # name=web-app，path=products/web-app
-hearth repo add https://git.example.invalid/acme/api.git --name api-service --branch develop
+hearth repo add https://git.example.invalid/acme/api.git --name api-service --branch develop --description "訂單 API"
+hearth repo describe web-app "給客戶用的網頁前端"                   # 補上或修改 description
+hearth repo describe web-app ""                                     # 清掉 description
 hearth repo remove web-app                                          # 只改 hearth.toml，checkout 留著
 ```
 
-- 沒給 `--name` 時取 URL 最後一段、去掉 `.git`；沒給 `--path` 時是 `products/<name>`；沒給 `--branch` 時問遠端的預設分支。
+- 沒給 `--name` 時取 URL 最後一段、去掉 `.git`；沒給 `--path` 時是 `products/<name>`；沒給 `--branch` 時問遠端的預設分支。`--description` 和 `repo describe` 的文字會先去掉前後空白。
 - 不合規則或跟既有項目衝突時 exit 2，`hearth.toml` 不變，訊息會提示用哪個旗標指定。
 - 改完記得 commit `hearth.toml` 並開 PR。
 

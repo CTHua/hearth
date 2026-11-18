@@ -97,6 +97,7 @@ func runDoctor(ctx context.Context, s streams, g globals, args []string) error {
 		report.ok("protocol %s", home.Personal.Protocol)
 	}
 	// Before the git check returns: these need no git.
+	checkDescriptions(report, home)
 	checkMCP(report, home)
 	checkSubagents(report, home)
 	if git == nil {
@@ -141,6 +142,16 @@ func checkSkills(ctx context.Context, report *doctorReport, git *gitx.Git, home 
 		}
 	}
 	return nil
+}
+
+// checkDescriptions warns about each repo without a description; agents
+// read it to tell which product a task belongs to.
+func checkDescriptions(report *doctorReport, home *config.Home) {
+	for _, repo := range home.Team.Repos {
+		if repo.Description == "" {
+			report.warn("%s has no description in %s; add one with `%s repo describe %s <text>`", repo.Name, brand.TeamFile, brand.Name, repo.Name)
+		}
+	}
 }
 
 // checkMCP reports only the chosen servers. A missing variable or command

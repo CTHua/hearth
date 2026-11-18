@@ -22,7 +22,8 @@ This home repo is managed with the `hearth` CLI. Two files hold its settings:
 
 | Task | Command |
 | --- | --- |
-| Add a product repo | `hearth repo add <url> [--name <name>] [--path <path>] [--branch <branch>]` |
+| Add a product repo | `hearth repo add <url> [--name <name>] [--path <path>] [--branch <branch>] [--description <text>]` |
+| Set or clear what a product repo is for | `hearth repo describe <name> <text>`; an empty `<text>` removes it |
 | Remove a product repo | `hearth repo remove <name>` |
 | Add an external skill, pinned | `hearth skill add <url> [--name <name>] [--commit <sha>] [--subdir <dir>]` |
 | Remove an external skill | `hearth skill remove <name>` |
@@ -41,6 +42,6 @@ This home repo is managed with the `hearth` CLI. Two files hold its settings:
 | See every MCP server and missing variables | `hearth mcp list` |
 | Check the whole setup | `hearth doctor` |
 
-- After `repo add`, `repo remove`, `skill add`, `skill remove`, `skill update`, `mcp add` or `mcp remove`, commit `hearth.toml` and open a PR.
+- After `repo add`, `repo remove`, `repo describe`, `skill add`, `skill remove`, `skill update`, `mcp add` or `mcp remove`, commit `hearth.toml` and open a PR.
 - `skill list`, `mcp list` and `doctor` only read; they never connect to a remote or write a file.
 - Team skills are directories in `skills/<name>/` with a `SKILL.md`; they are chosen with `skill enable` like external ones.

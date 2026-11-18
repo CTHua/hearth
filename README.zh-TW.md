@@ -62,11 +62,12 @@ go build -ldflags "-X github.com/CTHua/hearth/internal/version.Version=0.1.0" -o
 ```sh
 hearth init team-home             # 目錄要不存在或是空的；會跑 git init，不會 commit
 cd team-home
-hearth repo add git@git.example.com:acme/web-app.git
+hearth repo add git@git.example.com:acme/web-app.git --description "Customer-facing web app"
 hearth repo add https://git.example.com/acme/api.git --name api-service --branch develop
+hearth repo describe api-service "Orders API"
 ```
 
-`repo add` 從 URL 取名稱和路徑（`products/<name>`）；沒給 `--branch` 時問遠端的預設分支。做完照一般 repo 的方式 commit，推到你們的 Git host。
+`repo add` 從 URL 取名稱和路徑（`products/<name>`）；沒給 `--branch` 時問遠端的預設分支。選填的 `description` 寫這個產品做什麼，agent 靠它判斷任務屬於哪個產品；之後用 `repo describe` 補上或修改，`doctor` 會提醒沒寫的 repo。做完照一般 repo 的方式 commit，推到你們的 Git host。
 
 ### 2. clone 產品（每位成員）
 
@@ -79,9 +80,9 @@ hearth repo list
 ```
 
 ```text
-NAME           PATH                    BRANCH   STATUS   DETAIL
-web-app        products/web-app        main     ok
-api-service    products/api-service    develop  ok
+NAME         PATH                  BRANCH   STATUS  DETAIL  DESCRIPTION
+web-app      products/web-app      main     ok              Customer-facing web app
+api-service  products/api-service  develop  ok              Orders API
 ```
 
 每個產品是 `products/` 底下獨立的 Git repo，Home Repo 忽略這個目錄。
@@ -136,7 +137,7 @@ agent 請從 Home Repo 根目錄啟動。Claude Code 從 `products/<name>/` 啟�
 
 | 類別 | 指令 |
 | --- | --- |
-| Repo | `repo add`、`repo remove`、`repo list`、`repo fix-remote`、`clone` |
+| Repo | `repo add`、`repo remove`、`repo describe`、`repo list`、`repo fix-remote`、`clone` |
 | Skill | `skill add`、`skill update`、`skill remove`、`skill enable`、`skill disable`、`skill sync`、`skill list` |
 | MCP server | `mcp add`、`mcp remove`、`mcp enable`、`mcp disable`、`mcp sync`、`mcp list` |
 | Subagent | `subagent enable`、`subagent disable`、`subagent sync`、`subagent list` |
