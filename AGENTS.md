@@ -27,6 +27,9 @@
 | `internal/apperr` | 錯誤類別、錯誤格式、exit code |
 | `internal/brand` | 所有含套件名稱的字串 |
 | `template/home/` | `hearth init` 寫出的 Home Repo 模板（go:embed） |
+| `install.sh` | `curl \| sh` 的安裝腳本（POSIX sh）：選平台、從 Release 下載壓縮檔和 `SHA256SUMS`、驗 checksum、在安裝目錄試跑 `version` 後才換檔 |
+| `scripts/` | `build-release.sh` 建 4 個平台的壓縮檔和 `SHA256SUMS`；`test-install.sh` 用 `file://` 離線測 `install.sh`（CI 和 release workflow 都跑） |
+| `.github/workflows/release.yml` | 跑檢查和建置；tag 觸發時做 build provenance attestation、建 draft Release；PR 和手動觸發只建置、存成 workflow artifact |
 
 ## 規則
 
@@ -45,4 +48,5 @@
 - agent 的 MCP 設定（`.mcp.json`、`.codex/config.toml`）和 `.hearth/state.json` 只由 `hearth sync` / `hearth mcp sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫。秘密只寫環境變數名稱。
 - subagent 的產出檔（`.claude/agents/<name>.md`、`.codex/agents/<name>.toml`）只由 `hearth sync` / `hearth subagent sync` 從 `subagents/` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。規則同 MCP：被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫；沒記錄、也不在這次目標裡的檔不碰。
 - skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth sync` / `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
+- 發布：產物檔名 `hearth_<os>_<arch>.tar.gz`、`SHA256SUMS` 的格式（`<64 個 hex><兩個空白><檔名>`，照檔名排序）、`install.sh` 的三個環境變數（`HEARTH_VERSION`、`HEARTH_INSTALL_DIR`、`HEARTH_BASE_URL`）是對外的契約，第一個 Release 之後改了就會弄壞別人的安裝。發版步驟：在 Actions 手動觸發 `release` 做 dry-run → 打 `v<MAJOR.MINOR.PATCH>` tag 並 push → 檢查 draft Release 的產物 → 按 Publish → 拿掉 README 的 pre-release 註記，和上面 `schema_version` 的發布前例外。`main` 上的 `install.sh` 一改就影響所有新安裝的人。
 - 未經要求不 commit、不 push、不打 tag、不發 Release。

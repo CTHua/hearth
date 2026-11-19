@@ -39,6 +39,34 @@ hearth 幫團隊建立並維護 Home Repo：一個 Git repo，放工程師和 AI
 
 ## 安裝
 
+### 下載發布版
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CTHua/hearth/main/install.sh | sh
+```
+
+這要有已發布的 GitHub Release，目前 hearth 還沒有。第一個 Release 出來之前，請用下面的 `go install` 從原始碼安裝。
+
+腳本會挑這台平台的壓縮檔（`darwin` 或 `linux`，`amd64` 或 `arm64`），連同 `SHA256SUMS` 從 Release 下載，驗過 SHA-256 後把 `hearth` 裝到 `~/.local/bin`。不用 sudo，也不改 shell 設定檔；安裝目錄不在 `PATH` 上時，會印出要加的那一行。checksum 不符時什麼都不裝，原本的 `hearth` 不動。
+
+| 環境變數 | 預設值 | 用途 |
+| --- | --- | --- |
+| `HEARTH_VERSION` | 最新的 Release | 要裝的版本，`0.1.0` 或 `v0.1.0` 都可以 |
+| `HEARTH_INSTALL_DIR` | `$HOME/.local/bin` | 安裝目錄，不存在時會建立 |
+| `HEARTH_BASE_URL` | `https://github.com/CTHua/hearth/releases` | 下載來源的根，給鏡像和測試用 |
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CTHua/hearth/main/install.sh | HEARTH_VERSION=0.1.0 sh
+```
+
+每個 Release 的壓縮檔都有 build provenance attestation。腳本不驗它；要自己驗下載的壓縮檔，用 GitHub CLI：
+
+```sh
+gh attestation verify hearth_linux_amd64.tar.gz --repo CTHua/hearth
+```
+
+### 從原始碼
+
 ```sh
 go install github.com/CTHua/hearth/cmd/hearth@latest
 ```

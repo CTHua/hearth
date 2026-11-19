@@ -1,0 +1,129 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build, MAJOR.MINOR.PATCH without a v prefix
+        required: true
+        default: "0.0.0"
+  pull_request:
+    paths:
+      - install.sh
+      - "scripts/**"
+      - .github/workflows/release.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A tag build needs origin/main's history for the ancestry check.
+          fetch-depth: ${{ github.ref_type == 'tag' && '0' || '1' }}
+          persist-credentials: false
+      - name: check the tag is on main
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          commit="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "tag $TAG points at $commit, which is not in the history of origin/main" >&2
+            exit 1
+          fi
+      - name: resolve version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT_NAME" = push ] && [ "$REF_TYPE" = tag ]; then
+            version="${TAG#v}"
+          else
+            version="${INPUT_VERSION:-0.0.0}"
+          fi
+          # Reject anything but digits and dots before it reaches GITHUB_OUTPUT;
+          # build-release.sh checks the full format.
+          case "$version" in
+            "" | *[!0-9.]*)
+              echo "version \"$version\" must be MAJOR.MINOR.PATCH" >&2
+              exit 1
+              ;;
+          esac
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test -count=1 ./...
+      - name: build release archives
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/build-release.sh "$VERSION" dist
+      - name: install test
+        run: sh scripts/test-install.sh
+      - name: check the linux/amd64 binary version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          check_dir="$(mktemp -d)"
+          tar -xzf dist/hearth_linux_amd64.tar.gz -C "$check_dir" hearth
+          got="$("$check_dir/hearth" version)"
+          if [ "$got" != "$VERSION" ]; then
+            echo "hearth version printed \"$got\", want \"$VERSION\"" >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/hearth_darwin_amd64.tar.gz
+            dist/hearth_darwin_arm64.tar.gz
+            dist/hearth_linux_amd64.tar.gz
+            dist/hearth_linux_arm64.tar.gz
+            dist/SHA256SUMS
+      - name: create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --draft --verify-tag --generate-notes \
+            dist/hearth_darwin_amd64.tar.gz \
+            dist/hearth_darwin_arm64.tar.gz \
+            dist/hearth_linux_amd64.tar.gz \
+            dist/hearth_linux_arm64.tar.gz \
+            dist/SHA256SUMS

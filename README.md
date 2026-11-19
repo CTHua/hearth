@@ -39,6 +39,34 @@ hearth sets up and maintains a team's Home Repo: one Git repo that holds the rul
 
 ## Installation
 
+### Release binary
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CTHua/hearth/main/install.sh | sh
+```
+
+This needs a published GitHub Release, and hearth has none yet. Until the first Release, install from source with `go install` below.
+
+The script picks the archive for your platform (`darwin` or `linux`, `amd64` or `arm64`), downloads it with `SHA256SUMS` from the Release, checks the SHA-256, and installs `hearth` into `~/.local/bin`. It does not use sudo or edit your shell profile; when the directory is not on your `PATH`, it prints the line to add. If the checksum does not match, nothing is installed and an existing `hearth` stays as it was.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HEARTH_VERSION` | the latest Release | Version to install, `0.1.0` or `v0.1.0` |
+| `HEARTH_INSTALL_DIR` | `$HOME/.local/bin` | Directory to install into, created if missing |
+| `HEARTH_BASE_URL` | `https://github.com/CTHua/hearth/releases` | Download root, for mirrors and tests |
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CTHua/hearth/main/install.sh | HEARTH_VERSION=0.1.0 sh
+```
+
+Every Release archive has a build provenance attestation. The script does not check it; to check a downloaded archive yourself with the GitHub CLI:
+
+```sh
+gh attestation verify hearth_linux_amd64.tar.gz --repo CTHua/hearth
+```
+
+### From source
+
 ```sh
 go install github.com/CTHua/hearth/cmd/hearth@latest
 ```

@@ -24,3 +24,9 @@ jobs:
         run: go vet ./...
       - name: test
         run: go test -count=1 ./...
+      - name: install test
+        run: sh scripts/test-install.sh
+      - name: shellcheck
+        # Only the Ubuntu runner ships shellcheck.
+        if: runner.os == 'Linux'
+        run: shellcheck install.sh scripts/*.sh
