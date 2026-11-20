@@ -42,7 +42,8 @@
 
 - 測試只碰公開介面，不連網路。要用 git 的測試在 `TestMain` 呼叫 `gittest.Main`，遠端用 `gittest.BareRemote` 和 `gittest.Redirect`。
 - 相依只有 `github.com/BurntSushi/toml`、讀 subagent frontmatter 的 `go.yaml.in/yaml/v3`、TUI 用的 Charm 套件（`charm.land/bubbletea/v2`、`charm.land/bubbles/v2`、`charm.land/lipgloss/v2`）和判斷 TTY 的 `github.com/charmbracelet/x/term`。新增或升級相依先討論。
-- 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。- 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。
+- 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。
+- 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。
 - agent 的 MCP 設定（`.mcp.json`、`.codex/config.toml`）和 `.hearth/state.json` 只由 `hearth sync` / `hearth mcp sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫。秘密只寫環境變數名稱。
 - subagent 的產出檔（`.claude/agents/<name>.md`、`.codex/agents/<name>.toml`）只由 `hearth sync` / `hearth subagent sync` 從 `subagents/` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。規則同 MCP：被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫；沒記錄、也不在這次目標裡的檔不碰。
 - skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth sync` / `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
