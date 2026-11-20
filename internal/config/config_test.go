@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	released = "0.1.0"
-	header   = "schema_version = 1\n" + brand.MinVersionKey + " = \"0.1.0\"\n"
+	released = "0.2.0"
+	header   = "schema_version = 2\n" + brand.MinVersionKey + " = \"0.2.0\"\n"
 	webApp   = `
 [[repos]]
 name = "web-app"
@@ -58,7 +58,7 @@ func loadErrors(t *testing.T, root string, running string) (string, map[apperr.C
 }
 
 func TestLoadValidTeamAndPersonal(t *testing.T) {
-	root := writeFiles(t, header+webApp, "schema_version = 1\nprotocol = \"https\"\n")
+	root := writeFiles(t, header+webApp, "schema_version = 2\nprotocol = \"https\"\n")
 	home, err := config.Load(root, released)
 	if err != nil {
 		t.Fatal(err)
@@ -96,11 +96,11 @@ func TestLoadMissingTeamFileIsConfigError(t *testing.T) {
 }
 
 func TestPersonalFileProtocolRules(t *testing.T) {
-	home, err := config.Load(writeFiles(t, header, "schema_version = 1\n"), released)
+	home, err := config.Load(writeFiles(t, header, "schema_version = 2\n"), released)
 	if err != nil || home.Personal.Protocol != "" {
 		t.Fatalf("protocol-less personal file: %+v, %v", home, err)
 	}
-	for _, personal := range []string{"schema_version = 1\nprotocol = \"git\"\n", "schema_version = 1\nprotocol = 1\n", "protocol = \"ssh\"\n"} {
+	for _, personal := range []string{"schema_version = 2\nprotocol = \"git\"\n", "schema_version = 2\nprotocol = 1\n", "protocol = \"ssh\"\n"} {
 		lines, categories := loadErrors(t, writeFiles(t, header, personal), released)
 		if !categories[apperr.Config] || !strings.Contains(lines, brand.LocalFile+": ") {
 			t.Errorf("%q: %s", personal, lines)
@@ -123,7 +123,7 @@ func TestUnknownKeysAreConfigErrorsWithLocation(t *testing.T) {
 			t.Errorf("team file %q:\n got %s\nwant %s", team, lines, want)
 		}
 	}
-	lines, _ := loadErrors(t, writeFiles(t, header, "schema_version = 1\ncolor = \"red\"\n"), released)
+	lines, _ := loadErrors(t, writeFiles(t, header, "schema_version = 2\ncolor = \"red\"\n"), released)
 	if !strings.Contains(lines, brand.LocalFile+": unknown key color") {
 		t.Errorf("personal unknown key: %s", lines)
 	}
@@ -191,11 +191,11 @@ branch = "main"
 }
 
 func TestVersionGate(t *testing.T) {
-	newer := "schema_version = 1\n" + brand.MinVersionKey + " = \"0.2.0\"\n"
+	newer := "schema_version = 2\n" + brand.MinVersionKey + " = \"0.3.0\"\n"
 	if _, categories := loadErrors(t, writeFiles(t, newer, ""), released); !categories[apperr.Version] {
 		t.Error("older build than min version: want version error")
 	}
-	if _, err := config.Load(writeFiles(t, newer, ""), "0.2.0"); err != nil {
+	if _, err := config.Load(writeFiles(t, newer, ""), "0.3.0"); err != nil {
 		t.Errorf("equal version: %v", err)
 	}
 	if _, err := config.Load(writeFiles(t, newer, ""), "0.10.0"); err != nil {
@@ -207,18 +207,18 @@ func TestVersionGate(t *testing.T) {
 	}
 	// A newer schema fails as version even though it also has keys this build
 	// does not know: the version check runs before strict parsing.
-	future := "schema_version = 2\n" + brand.MinVersionKey + " = \"0.1.0\"\nnew_key = true\n"
+	future := "schema_version = 3\n" + brand.MinVersionKey + " = \"0.2.0\"\nnew_key = true\n"
 	for _, running := range []string{released, "dev"} {
 		lines, categories := loadErrors(t, writeFiles(t, future, ""), running)
 		if !categories[apperr.Version] || categories[apperr.Config] {
 			t.Errorf("schema 2 with %s: %s", running, lines)
 		}
 	}
-	lines, categories := loadErrors(t, writeFiles(t, header, "schema_version = 2\nnew_key = 1\n"), released)
+	lines, categories := loadErrors(t, writeFiles(t, header, "schema_version = 3\nnew_key = 1\n"), released)
 	if !categories[apperr.Version] || categories[apperr.Config] {
 		t.Errorf("personal schema 2: %s", lines)
 	}
-	for _, bad := range []string{"schema_version = 1\n", brand.MinVersionKey + " = \"0.1.0\"\n", "schema_version = 1\n" + brand.MinVersionKey + " = \"v0.1.0\"\n"} {
+	for _, bad := range []string{"schema_version = 2\n", brand.MinVersionKey + " = \"0.2.0\"\n", "schema_version = 2\n" + brand.MinVersionKey + " = \"v0.2.0\"\n"} {
 		if _, categories := loadErrors(t, writeFiles(t, bad, ""), released); !categories[apperr.Config] {
 			t.Errorf("%q: want config error", bad)
 		}
@@ -285,7 +285,7 @@ func TestWritePersonal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "schema_version = 1\nprotocol = \"ssh\"\n"; string(data) != want {
+	if want := "schema_version = 2\nprotocol = \"ssh\"\n"; string(data) != want {
 		t.Errorf("personal file %q, want %q", data, want)
 	}
 }

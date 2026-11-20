@@ -26,10 +26,83 @@ const (
 	sectionSubagents
 )
 
-// mineRow says which group a Mine row is in and its index there.
+// skillLine is one row of Mine's skill section: the title row of a group,
+// or one skill, which may be a member of the group above it.
+type skillLine struct {
+	// group is set on a title row.
+	group string
+	// members are the indexes in snap.skills of a group's skills.
+	members []int
+	// skill is the index in snap.skills of a skill row; -1 on a title row.
+	skill int
+}
+
+// skillLines puts a title row before the members of each group; the rows
+// of one group are next to each other in catalog order.
+func (m *Model) skillLines() []skillLine {
+	var lines []skillLine
+	// title is the index in lines of the current group's title row.
+	title := -1
+	for i, row := range m.snap.skills {
+		switch {
+		case row.Group == "":
+			title = -1
+		case title < 0 || lines[title].group != row.Group:
+			lines = append(lines, skillLine{group: row.Group, skill: -1})
+			title = len(lines) - 1
+		}
+		if title >= 0 {
+			lines[title].members = append(lines[title].members, i)
+		}
+		lines = append(lines, skillLine{skill: i})
+	}
+	return lines
+}
+
+// groupCounts are how many members of a title row's group are enabled, and
+// how many it has.
+func (m *Model) groupCounts(line skillLine) (int, int) {
+	on := 0
+	for _, i := range line.members {
+		if m.snap.skills[i].Enabled {
+			on++
+		}
+	}
+	return on, len(line.members)
+}
+
+// toggleGroup turns on every member of the group that is off and can be
+// chosen; when none is left to turn on, it turns every enabled member off.
+func (m *Model) toggleGroup(line skillLine) {
+	var off []string
+	var on []string
+	for _, i := range line.members {
+		row := m.snap.skills[i]
+		switch {
+		case row.Enabled:
+			on = append(on, row.Name)
+		case row.Invalid == "":
+			off = append(off, row.Name)
+		}
+	}
+	if len(off) > 0 {
+		added, err := m.actions.EnableSkills(off)
+		m.finishNow(onSuccess([]string{fmt.Sprintf("enabled: %s (saved to %s)", core.LabelList(added), brand.LocalFile)}, err), false, err)
+		return
+	}
+	if len(on) == 0 {
+		m.messages = []string{fmt.Sprintf(msgGroupInvalid, line.group)}
+		return
+	}
+	removed, err := m.actions.DisableSkills(on)
+	m.finishNow(onSuccess([]string{fmt.Sprintf("disabled: %s (saved to %s)", core.LabelList(removed), brand.LocalFile)}, err), false, err)
+}
+
+// mineRow says which group a Mine row is in and its index there; a skill
+// row's index is in skillLines.
 func (m *Model) mineRow(row int) (section, int) {
 	skillsStart := optionCount + agentRows
-	serversStart := skillsStart + len(m.snap.skills)
+	serversStart := skillsStart + len(m.skillLines())
 	subagentsStart := serversStart + len(m.snap.servers)
 	switch {
 	case row < optionCount:
@@ -72,7 +145,15 @@ func (m *Model) mineKey(msg tea.KeyPressMsg) tea.Cmd {
 		err := m.actions.SetAgents(agents)
 		m.finishNow(onSuccess([]string{fmt.Sprintf("agents: %s (saved to %s)", core.LabelList(agents), brand.LocalFile)}, err), false, err)
 	case sectionSkills:
-		item := m.snap.skills[index]
+		line := m.skillLines()[index]
+		if line.skill < 0 {
+			if m.busy() {
+				return nil
+			}
+			m.toggleGroup(line)
+			return nil
+		}
+		item := m.snap.skills[line.skill]
 		if item.Source == skill.Builtin {
 			m.messages = []string{msgBuiltin}
 			return nil

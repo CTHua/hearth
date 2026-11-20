@@ -5,12 +5,13 @@
 package upgrade
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 
 	"github.com/BurntSushi/toml"
 
@@ -28,12 +29,31 @@ const (
 	filePerm         = 0o644
 )
 
-// Migration rewrites a decoded config file from schema From to From+1. It
-// changes values in place; Run sets schema_version afterwards.
+// Migration rewrites the text of a config file from schema From to From+1.
+// Apply returns the new text; nothing is decoded and encoded again, so the
+// comments, blank lines and key order a person wrote survive. Run sets the
+// number on the top-level schema_version line afterwards.
 type Migration struct {
 	From  int64
-	Apply func(values map[string]any) error
+	Apply func(text []byte) ([]byte, error)
 }
+
+var (
+	// tableHeaderRE starts the first table; top-level keys come before it.
+	tableHeaderRE = regexp.MustCompile(`(?m)^[ \t]*\[`)
+	// schemaLineRE is `schema_version = <n>`, with or without spaces around
+	// "=" and with an optional comment after the value. The line may end in
+	// "\r\n": in (?m) "$" matches only before "\n", so the "\r" is matched
+	// in the last group and kept as it is.
+	schemaLineRE = regexp.MustCompile(`(?m)^([ \t]*` + keySchemaVersion + `[ \t]*=[ \t]*)([0-9]+)([ \t]*(?:#[^\r\n]*)?\r?)$`)
+	// minVersionLineREs are the min version key with a double- or a
+	// single-quoted value; RE2 has no backreference to match the quote.
+	// A trailing "\r" is kept the same way as in schemaLineRE.
+	minVersionLineREs = []*regexp.Regexp{
+		regexp.MustCompile(`(?m)^([ \t]*` + regexp.QuoteMeta(brand.MinVersionKey) + `[ \t]*=[ \t]*")([^"\\\r\n]*)("[ \t]*(?:#[^\r\n]*)?\r?)$`),
+		regexp.MustCompile(`(?m)^([ \t]*` + regexp.QuoteMeta(brand.MinVersionKey) + `[ \t]*=[ \t]*')([^'\r\n]*)('[ \t]*(?:#[^\r\n]*)?\r?)$`),
+	}
+)
 
 // Plan is what Run upgrades to: one migration chain per config file, the
 // schema they end at, and the check that the migrated files load.
@@ -45,16 +65,78 @@ type Plan struct {
 	Validate func(dir string) error
 }
 
-// Default is the plan of this build. There are no migrations yet: schema 1
-// is the first, and before the first release the format changed in place.
+// Default is the plan of this build. Schema 2 added groups of skills to the
+// team file and changed nothing else, so 1 -> 2 only raises the team file's
+// min version; the personal file keeps its text.
 func Default() Plan {
 	return Plan{
-		Target: config.SchemaVersion,
+		Team:     []Migration{{From: 1, Apply: raiseMinVersion(config.MinVersion)}},
+		Personal: []Migration{{From: 1, Apply: unchanged}},
+		Target:   config.SchemaVersion,
 		Validate: func(dir string) error {
 			_, err := config.Load(dir, version.Current())
 			return err
 		},
 	}
+}
+
+func unchanged(text []byte) ([]byte, error) {
+	return text, nil
+}
+
+// raiseMinVersion returns a migration step that sets the value of the
+// top-level min version line to least when it is lower, keeping its quotes
+// and any comment. A file without that line, or with a value that is not a
+// version, is an error.
+func raiseMinVersion(least string) func(text []byte) ([]byte, error) {
+	return func(text []byte) ([]byte, error) {
+		top := topLevel(text)
+		for _, re := range minVersionLineREs {
+			match := re.FindSubmatchIndex(top)
+			if match == nil {
+				continue
+			}
+			current := string(top[match[4]:match[5]])
+			parsed, err := version.Parse(current)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %v", brand.MinVersionKey, err)
+			}
+			wanted, err := version.Parse(least)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %v", brand.MinVersionKey, err)
+			}
+			if version.Compare(parsed, wanted) >= 0 {
+				return text, nil
+			}
+			return splice(text, match[4], match[5], least), nil
+		}
+		return nil, fmt.Errorf("no top-level %s = \"<version>\" line to rewrite", brand.MinVersionKey)
+	}
+}
+
+// topLevel is the part of text before the first table header.
+func topLevel(text []byte) []byte {
+	if loc := tableHeaderRE.FindIndex(text); loc != nil {
+		return text[:loc[0]]
+	}
+	return text
+}
+
+// splice returns text with the bytes from start to end replaced by value.
+func splice(text []byte, start int, end int, value string) []byte {
+	out := make([]byte, 0, len(text)-(end-start)+len(value))
+	out = append(out, text[:start]...)
+	out = append(out, value...)
+	return append(out, text[end:]...)
+}
+
+// setSchema replaces the number on the top-level schema_version line.
+func setSchema(text []byte, to int64) ([]byte, error) {
+	match := schemaLineRE.FindSubmatchIndex(topLevel(text))
+	if match == nil {
+		return nil, fmt.Errorf("no top-level %s = <number> line to rewrite", keySchemaVersion)
+	}
+	return splice(text, match[4], match[5], strconv.FormatInt(to, 10)), nil
 }
 
 // Change is one file Run rewrote, or would rewrite when only checking.
@@ -75,7 +157,6 @@ type configFile struct {
 	name     string
 	chain    []Migration
 	optional bool
-	header   string
 	// present is false for an optional file that does not exist.
 	present  bool
 	original []byte
@@ -95,7 +176,7 @@ func Run(root string, plan Plan, check bool) ([]Change, error) {
 		return nil, problems
 	}
 	files := []*configFile{
-		{name: brand.TeamFile, chain: plan.Team, header: brand.TeamFileHeader + "\n"},
+		{name: brand.TeamFile, chain: plan.Team},
 		{name: brand.LocalFile, chain: plan.Personal, optional: true},
 	}
 	for _, file := range files {
@@ -135,7 +216,9 @@ func Run(root string, plan Plan, check bool) ([]Change, error) {
 }
 
 // migrate decodes the file without config.Load, which refuses an older
-// schema, and applies the chain one step at a time up to target.
+// schema, to learn its schema, then applies the chain to its text one step
+// at a time up to target. Only the values the steps and the schema line
+// touch change; every other byte stays as it was.
 func (f *configFile) migrate(root string, target int64) error {
 	data, err := os.ReadFile(filepath.Join(root, f.name))
 	if errors.Is(err, fs.ErrNotExist) && f.optional {
@@ -162,27 +245,22 @@ func (f *configFile) migrate(root string, target int64) error {
 	if from == target {
 		return nil
 	}
+	text := data
 	for at := from; at < target; at++ {
 		step, found := stepFrom(f.chain, at)
 		if !found {
 			return apperr.New(apperr.Config, "%s: no migration from %s %d", f.name, keySchemaVersion, at)
 		}
-		if err := step.Apply(values); err != nil {
+		next, err := step.Apply(text)
+		if err == nil {
+			next, err = setSchema(next, at+1)
+		}
+		if err != nil {
 			return apperr.New(apperr.Config, "%s: migrating %s %d to %d: %v", f.name, keySchemaVersion, at, at+1, err)
 		}
-		values[keySchemaVersion] = at + 1
+		text = next
 	}
-	// Limit: encoding a map sorts its keys and drops comments. Fine while
-	// no real migration exists; one that must keep the order of
-	// header_envs should rewrite through config.WriteTeam instead.
-	var buf bytes.Buffer
-	buf.WriteString(f.header)
-	enc := toml.NewEncoder(&buf)
-	enc.Indent = ""
-	if err := enc.Encode(values); err != nil {
-		return apperr.New(apperr.Config, "cannot encode %s: %v", f.name, err)
-	}
-	f.updated = buf.Bytes()
+	f.updated = text
 	return nil
 }
 

@@ -7,10 +7,11 @@
 | 來源 | 放哪裡 | 怎麼加入 |
 | --- | --- | --- |
 | 團隊 | 這個目錄：`skills/<name>/SKILL.md` | 照下面「怎麼新增團隊 skill」開 PR |
-| 外部 | 別的 repo，釘在一個完整 commit SHA。`hearth skill sync` 把它 clone 到 `vendor/skills/<name>` | `hearth skill add <url> [--subdir <dir>] [--name <name>] [--commit <sha>]`，再開 PR |
+| 外部 | 別的 repo，釘在一個完整 commit SHA。`hearth skill sync` 把它 clone 到 `vendor/skills/<name>` | `hearth skill add <url> [--subdir <dir>]... [--name <name>] [--commit <sha>]`，再開 PR |
 | 內建 | `hearth` 自己帶的 `hearth` skill，教 agent 用 `hearth` 指令改清單 | 不用加；選了任一個 agent 就會裝 |
 
 - 名稱跨來源不分大小寫不能重複；`hearth` 保留給內建 skill。
+- 一個外部 repo 有多個 skill 時，`hearth skill add <url>` 不給 `--subdir` 會列出 repo 裡的 skill，建成一個群組：`hearth.toml` 只有一筆、整組共用一個 commit，`vendor/skills/<群組名>` 只有一份 checkout。群組裡每個 skill 的名字是它目錄的最後一段，`enable` 時寫這個名字，或寫群組名開整組。
 - 目錄名以 `_` 開頭的是模板，不算 skill。目錄名不合 name 規則（英數字、`.`、`_`、`-`，以英數字開頭）的會報 `skill-invalid`，不能選。
 
 ## 每個人自己選
@@ -19,7 +20,7 @@
 
 ```sh
 hearth config agents claude,codex   # 或只選一個；none 清空
-hearth skill enable <name>...       # 團隊或外部 skill 都可以選
+hearth skill enable <name>...       # 團隊或外部 skill 都可以選；群組名代表整組
 hearth skill sync                   # 安裝並建 link
 hearth skill list                   # 每個 skill 的來源、有沒有選、狀態
 hearth skill disable <name>...      # 不用了；下次 sync 會拿掉 link

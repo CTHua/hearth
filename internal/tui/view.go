@@ -34,6 +34,14 @@ const (
 	checkedBox   = "[✓]"
 	uncheckedBox = "[ ]"
 	builtinBox   = "[■]"
+	// partialBox is a group title with some of its skills on.
+	partialBox = "[-]"
+	// groupTitle is a group's row on Mine: its name, then enabled/members.
+	groupTitle = "%s (%d/%d)"
+	// memberIndent puts a group's skills under its title row.
+	memberIndent = "  "
+	// groupSize is a group's SUBDIR cell on the Skills tab.
+	groupSize    = "group of %d"
 	radioOn      = "(•)"
 	radioOff     = "( )"
 	columnGap    = "  "
@@ -574,7 +582,22 @@ func (m *Model) subagentCells() [][]cell {
 
 func (m *Model) skillCells() [][]cell {
 	var cells [][]cell
-	for _, row := range m.snap.skills {
+	for _, line := range m.skillLines() {
+		if line.skill < 0 {
+			on, total := m.groupCounts(line)
+			check := box(on == total)
+			if on > 0 && on < total {
+				check = cell{partialBox, colorWarn}
+			}
+			title := fmt.Sprintf(groupTitle, line.group, on, total)
+			cells = append(cells, []cell{check, {title, nil}, {string(skill.External), colorMuted}, {"", nil}, {"", nil}})
+			continue
+		}
+		row := m.snap.skills[line.skill]
+		name := row.Name
+		if row.Group != "" {
+			name = memberIndent + name
+		}
 		check := box(row.Enabled)
 		if row.Source == skill.Builtin {
 			check = cell{builtinBox, colorDim}
@@ -583,7 +606,7 @@ func (m *Model) skillCells() [][]cell {
 		if source == "" {
 			source = staleSource
 		}
-		cells = append(cells, []cell{check, {row.Name, nil}, {source, colorMuted}, statusCell(string(row.State)), {row.Detail, colorMuted}})
+		cells = append(cells, []cell{check, {name, nil}, {source, colorMuted}, statusCell(string(row.State)), {row.Detail, colorMuted}})
 	}
 	return cells
 }
@@ -656,7 +679,12 @@ func (m *Model) skillsLines(b *rows) {
 	header := []string{"", "NAME", "PIN", "SUBDIR", "URL"}
 	var cells [][]cell
 	for _, entry := range entries {
-		cells = append(cells, []cell{m.changeCell(core.TableSkills, entry.Name), {entry.Name, nil}, {shortSHA(entry.Commit), colorMuted}, {entry.Subdir, colorMuted}, {entry.URL, colorMuted}})
+		// A group is one row: d and u act on the whole entry.
+		subdir := entry.Subdir
+		if entry.IsGroup() {
+			subdir = fmt.Sprintf(groupSize, len(entry.Subdirs))
+		}
+		cells = append(cells, []cell{m.changeCell(core.TableSkills, entry.Name), {entry.Name, nil}, {shortSHA(entry.Commit), colorMuted}, {subdir, colorMuted}, {entry.URL, colorMuted}})
 	}
 	if len(cells) > 0 {
 		m.teamTable(b, header, cells)

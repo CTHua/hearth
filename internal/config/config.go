@@ -15,12 +15,13 @@ import (
 	"github.com/CTHua/hearth/internal/giturl"
 )
 
-// SchemaVersion is the newest schema_version this build reads and the one it writes.
-const SchemaVersion = 1
+// SchemaVersion is the newest schema_version this build reads and the one it
+// writes. Load reads only this one; older files go through `upgrade` first.
+const SchemaVersion = 2
 
 // MinVersion is the lowest release that reads SchemaVersion; init writes it
 // regardless of which build runs init.
-const MinVersion = "0.1.0"
+const MinVersion = "0.2.0"
 
 // Repo is one [[repos]] entry of the team file. Description is optional; it
 // is empty when the entry has none, and the key is then not written.
@@ -198,9 +199,9 @@ func Load(root string, running string) (*Home, error) {
 		}
 	}
 	home := &Home{Root: root}
-	problems, warning := checkTeamVersions(teamDoc, running)
+	problems, warning := checkTeamVersions(teamDoc, running, SchemaVersion)
 	if hasPersonal {
-		problems = append(problems, checkSchema(personalDoc)...)
+		problems = append(problems, checkSchema(personalDoc, SchemaVersion)...)
 	}
 	if warning != "" {
 		home.Warnings = append(home.Warnings, warning)

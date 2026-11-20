@@ -69,7 +69,7 @@ func (s *Service) TeamChanges(ctx context.Context) ([]TeamChange, error) {
 	}
 	team := s.home.Team
 	changes := diffEntries(TableRepos, head.Repos, team.Repos, func(r config.Repo) string { return r.Name }, func(a, b config.Repo) bool { return a == b })
-	changes = append(changes, diffEntries(TableSkills, head.Skills, team.Skills, func(e config.Skill) string { return e.Name }, func(a, b config.Skill) bool { return a == b })...)
+	changes = append(changes, diffEntries(TableSkills, head.Skills, team.Skills, func(e config.Skill) string { return e.Name }, sameSkill)...)
 	changes = append(changes, diffEntries(TableMCP, head.MCP, team.MCP, func(m config.MCP) string { return m.Name }, sameMCP)...)
 	return changes, nil
 }
@@ -103,6 +103,13 @@ func diffEntries[T any](table TeamTable, committed []T, current []T, name func(T
 		}
 	}
 	return changes
+}
+
+// sameSkill compares by value, subdirs included. A schema 1 entry from HEAD
+// has no subdirs, the same as a single skill written by this build.
+func sameSkill(a config.Skill, b config.Skill) bool {
+	return a.Name == b.Name && a.URL == b.URL && a.Commit == b.Commit && a.Subdir == b.Subdir &&
+		a.IsGroup() == b.IsGroup() && slices.Equal(a.Subdirs, b.Subdirs)
 }
 
 // sameMCP compares by value; an empty list equals a missing one, since the

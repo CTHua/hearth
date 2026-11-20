@@ -38,14 +38,26 @@ commands:
   repo fix-remote [<name>...]
                              point origin at the expected URL when only the
                              protocol differs
-  skill add <url> [--name <name>] [--commit <sha>] [--subdir <dir>]
+  skill add <url> [--name <name>] [--commit <sha>] [--subdir <dir>]...
                              pin an external skill in %[2]s; without
-                             --commit, the remote's HEAD commit
-  skill remove <name>        remove an external skill from %[2]s
-  skill update <name> [--commit <sha>]
-                             move a skill's pin in %[2]s
-  skill enable <name>...     choose skills in %[3]s
-  skill disable <name>...    stop using skills, including removed ones
+                             --commit, the remote's HEAD commit. Without
+                             --subdir the remote's SKILL.md files are
+                             listed: one is added alone, several as a
+                             group sharing one commit; several --subdir
+                             make a group; --name <group> --subdir <dir>
+                             adds to an existing group
+  skill remove <name>|<group>|<group>/<name>
+                             remove an external skill or a whole group
+                             from %[2]s; a group's skill leaves its group;
+                             <group>/<name> picks the group when several
+                             have a skill of that name
+  skill update <name>|<group> [--commit <sha>]
+                             move the pin of a skill or a whole group
+  skill enable <name>|<group>...
+                             choose skills in %[3]s; a group stands for
+                             all of its skills
+  skill disable <name>|<group>...
+                             stop using skills, including removed ones
   skill sync                 install the chosen skills into vendor/skills/
                              and link them for each chosen agent
   skill list                 show every skill and its state

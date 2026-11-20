@@ -77,8 +77,9 @@ hearth repo remove web-app                                          # 只改 hea
 
 ```sh
 hearth skill add https://git.example.invalid/acme/skills.git --subdir pdf   # 團隊檔，釘在遠端 HEAD 當下的 commit
+hearth skill add https://git.example.invalid/acme/toolkit.git              # 沒給 --subdir：列出 repo 裡的 skill，多個就建一個群組
 hearth config agents claude,codex                                          # 個人檔；none 清空
-hearth skill enable pdf                                                    # 個人檔
+hearth skill enable pdf                                                    # 個人檔；給群組名就開整組
 hearth skill sync                                                          # 安裝並建 link
 hearth skill list                                                          # 只讀，不連網
 ```
@@ -100,10 +101,27 @@ subdir = "pdf"
 | `commit` | 完整的 40 或 64 個小寫 hex，不能是分支或 tag |
 | `subdir` | `.` 或 repo 裡的相對路徑，不能有 `.`、`..`、`.git` 段；底下要有 `SKILL.md` |
 
+一個 repo 有多個 skill 時，用 `subdirs` 寫成一筆群組，整組共用一個 commit 和一份 checkout：
+
+```toml
+[[skills]]
+name = "toolkit"
+url = "https://git.example.invalid/acme/toolkit.git"
+commit = "0123456789abcdef0123456789abcdef01234567"
+subdirs = ["skills/grilling", "skills/grill-me"]
+```
+
+- 一筆只能有 `subdir` 或 `subdirs` 其中一個。`subdirs` 不能是空的，每個值的規則同 `subdir`，但不能是 `.`，也不能重複。
+- 每個 skill 的名字是 subdir 的最後一段（例如 `grilling`），規則同 `name`，同一個群組裡不能重複；`hearth.local.toml` 的 `skills` 寫的是這個名字。
+- 群組名不能跟任何一筆的 `name` 或任何群組裡的 skill 同名。不同群組有同名的 skill 時，兩個都是 `skill-invalid`。
+- `skill add <url>` 沒給 `--subdir` 時會 clone 一份到系統暫存目錄、列出所有 `SKILL.md`（不 checkout、不執行裡面的東西，用完就刪）：頂層有 `SKILL.md` 或只有一個就加成單一 skill，兩個以上就建群組。repo 根目錄有 `.claude-plugin/plugin.json` 時，成員是它 `skills` 欄位列的路徑底下的 skill，群組名是它的 `name`；沒加入的會逐一列出，可以用 `skill add <url> --name <群組> --subdir <路徑>` 補進去。給多個 `--subdir` 就直接建群組、不列檔案。
+- `skill enable <群組名>` 開整組、`skill disable <群組名>` 關掉整組已開的；`skill remove <群組名>` 移除整筆，`skill remove <skill>` 只把那個 skill 拿出群組，多個群組有同名的 skill 時寫成 `skill remove <群組名>/<skill>` 指定哪一組；`skill update <群組名>` 換整組的 pin。
+- 舊版（`schema_version = 1`）的設定檔要先跑 `hearth upgrade`，它只改 `schema_version` 和 `min_hearth_version` 兩個值。
+
 `hearth.local.toml` 的個人選擇：`agents = ["claude", "codex"]`、`skills = ["pdf"]`（MCP 和 subagent 是 `mcp`、`subagents`），不存在代表空的。
 
 - 沒給 `--commit` 時 `skill add`、`skill update` 用 `git ls-remote` 問遠端 `HEAD`；給了完整 SHA 時不連網。
-- `skill sync` 把外部 skill clone 到 `vendor/skills/<name>`、detached 在 pin，內建的 `hearth` skill 寫到 `.hearth/skills/hearth/`，再 symlink 到 `.claude/skills/`（`claude`）、`.agents/skills/`（`codex`）。已經在 pin 的不 clone、不 fetch。
+- `skill sync` 把外部 skill clone 到 `vendor/skills/<name>`（群組一筆一份，至少開了一個成員才 clone）、detached 在 pin，內建的 `hearth` skill 寫到 `.hearth/skills/hearth/`，再 symlink 到 `.claude/skills/`（`claude`）、`.agents/skills/`（`codex`）。已經在 pin 的不 clone、不 fetch。
 - `skill remove` 只改 `hearth.toml`：下次 `sync` 清掉 link，`vendor/skills/<name>` 要自己刪。
 - `doctor` 也檢查選到的 skill、MCP server 和 subagent，以及不合格的 subagent 定義。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
 

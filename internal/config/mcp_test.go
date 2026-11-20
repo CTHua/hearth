@@ -33,7 +33,7 @@ header_envs = { "X-Workspace" = "TRACKER_WORKSPACE", "A-First" = "TRACKER_A" }
 )
 
 func TestLoadAndWriteMCPKeepsOrder(t *testing.T) {
-	root := writeFiles(t, header+webApp+pdfSkill+docsServer+trackerServer, "schema_version = 1\nmcp = [\"tracker\", \"gone\"]\n")
+	root := writeFiles(t, header+webApp+pdfSkill+docsServer+trackerServer, "schema_version = 2\nmcp = [\"tracker\", \"gone\"]\n")
 	home, err := config.Load(root, released)
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestLoadAndWriteMCPKeepsOrder(t *testing.T) {
 	if err := config.WritePersonal(root, home.Personal.WithMCPChoices([]string{"docs"})); err != nil {
 		t.Fatal(err)
 	}
-	if got := readText(t, filepath.Join(root, brand.LocalFile)); got != "schema_version = 1\nmcp = [\"docs\"]\n" {
+	if got := readText(t, filepath.Join(root, brand.LocalFile)); got != "schema_version = 2\nmcp = [\"docs\"]\n" {
 		t.Errorf("personal file %q", got)
 	}
 }
@@ -137,7 +137,7 @@ func TestMCPRulesNameFileAndLocation(t *testing.T) {
 		"mcp = [\"a.b\"]\n":      "mcp[0]: ",
 	}
 	for body, want := range personal {
-		lines, _ := loadErrors(t, writeFiles(t, header, "schema_version = 1\n"+body), released)
+		lines, _ := loadErrors(t, writeFiles(t, header, "schema_version = 2\n"+body), released)
 		if !strings.Contains(lines, brand.LocalFile+": "+want) {
 			t.Errorf("%q: %s", body, lines)
 		}

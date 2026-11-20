@@ -171,12 +171,16 @@ agent 請從 Home Repo 根目錄啟動。Claude Code 從 `products/<name>/` 啟�
 
 ```sh
 hearth skill add https://git.example.com/acme/skills.git --subdir pdf   # 釘在遠端 HEAD
+hearth skill add https://git.example.com/acme/toolkit.git               # 列出 repo 裡的 skill，多個就建成一個群組
+hearth skill enable toolkit                                             # 給群組名就開整組
 hearth mcp add docs --env-var DOCS_TOKEN -- npx -y @acme/docs-mcp       # stdio server
 hearth mcp add tracker --url https://mcp.example.com/mcp --bearer-token-env TRACKER_TOKEN
 hearth repo fix-remote            # origin 只差協定時，改成預期的 URL
 ```
 
 `hearth repo remove` 只改 `hearth.toml`，checkout 留著。
+
+一個 repo 有多個 skill 時加成一個群組：`hearth.toml` 只有一筆 `[[skills]]`，用 `subdirs` 取代 `subdir`，整組共用一個 commit，`vendor/skills/<群組名>` 只有一份 checkout。`skill add` 沒給 `--subdir` 時，會在系統暫存目錄 clone 一份（不 checkout）、列出所有 `SKILL.md`，用完就刪；repo 有 `.claude-plugin/plugin.json` 時，成員照它的 `skills` 路徑挑，群組名用它的 `name`。每個 skill 的名字是目錄的最後一段，所以 `skill enable grilling` 開一個、`skill enable <群組名>` 開整組。`skill remove <成員>` 只把那個 skill 拿出群組（多個群組有同名成員時寫 `skill remove <群組名>/<成員>`），`skill update <群組名>` 換整組的 pin。`skill list` 多一欄 `GROUP`。
 
 exit code：`0` 成功；`1` 有 repo、skill 或產生的檔案失敗；`2` 設定、用法、環境或版本錯誤；`130` 中斷。錯誤格式是 `error [<類別>] <說明>`。
 
@@ -192,6 +196,8 @@ hearth upgrade
 ```
 
 `upgrade` 只重寫 `AGENTS.md`、`.gitignore` 裡 `hearth:begin` 和 `hearth:end` 標記之間的內容，並把兩個設定檔升到目前的 `schema_version`。標記外的內容逐 byte 不變。標記缺少、重複或順序錯時 exit 2，什麼都不寫。
+
+hearth 0.2.0 只讀 `schema_version = 2`（加了 skill 群組）。它的 `upgrade` 只在原地改兩個值：兩個設定檔的 `schema_version` 從 1 改成 2，`hearth.toml` 的 `min_hearth_version` 低於 `0.2.0` 時改成 `0.2.0`；註解、空行和 key 的順序都保留。升級後的 `hearth.toml` 走 PR 合併；還在用 0.1.0 的同事要先裝 0.2.0，每個人也要各跑一次 `hearth upgrade` 升自己的 `hearth.local.toml`。
 
 ## 已知限制
 

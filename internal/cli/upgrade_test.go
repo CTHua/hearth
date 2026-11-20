@@ -165,11 +165,11 @@ func TestUpgradeBrokenMarkersWritesNothing(t *testing.T) {
 
 func TestUpgradeIgnoresVersionGateOfOlderSchemaButNotNewer(t *testing.T) {
 	home := newHome(t)
-	text := strings.Replace(read(t, teamFile(home)), "schema_version = 1", "schema_version = 2", 1)
+	text := strings.Replace(read(t, teamFile(home)), "schema_version = 2", "schema_version = 3", 1)
 	write(t, teamFile(home), text)
 	run(t, "-C", home, "upgrade").expect(t, exitBad, "error [version]")
 	// No migration leads up from schema 0.
-	write(t, teamFile(home), strings.Replace(text, "schema_version = 2", "schema_version = 0", 1))
+	write(t, teamFile(home), strings.Replace(text, "schema_version = 3", "schema_version = 0", 1))
 	run(t, "-C", home, "upgrade").expect(t, exitBad, "error [config]")
 }
 

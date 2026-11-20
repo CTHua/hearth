@@ -37,7 +37,9 @@ var replaceDir = dirswap.Replace
 // at the pin is only checked: never fetched. One at another commit is
 // replaced only when nothing local can be lost; see replaceExternal. The
 // line to print is returned on success; a per-skill failure is an
-// *apperr.Error, and any other error should stop the run.
+// *apperr.Error, and any other error should stop the run. For a single
+// skill the subdir is checked too; the members of a group are checked one
+// by one by the caller, so one broken member does not fail the others.
 func installExternal(ctx context.Context, g *gitx.Git, root string, s config.Skill, url string, progress io.Writer) (string, error) {
 	rel := VendorDir + pathSeparator + s.Name
 	if problem := dirProblem(root, rel); problem != "" {
@@ -76,7 +78,7 @@ func installExternal(ctx context.Context, g *gitx.Git, root string, s config.Ski
 		return "", err
 	}
 	if head == s.Commit && detached {
-		if e := verifySubdir(target, s); e != nil {
+		if e := verifySingle(target, s); e != nil {
 			return "", e
 		}
 		return fmt.Sprintf("skill %s: already at %s", s.Name, s.Commit), nil
@@ -162,7 +164,8 @@ func inTemp(root string, name string, progress io.Writer, fn func(temp string) e
 }
 
 // cloneAtPin clones url into dest without a checkout, then checks out the
-// pin detached and confirms HEAD is exactly the pin.
+// pin detached and confirms HEAD is exactly the pin. A single skill's
+// subdir must hold its SKILL.md, or the clone is not used.
 func cloneAtPin(ctx context.Context, g *gitx.Git, s config.Skill, url string, dest string, progress io.Writer) error {
 	cmd := g.Cmd(ctx, "", "-c", gitx.NoExtTransport, "clone", "--no-checkout", "--", url, dest)
 	cmd.Stdout = progress
@@ -193,10 +196,19 @@ func cloneAtPin(ctx context.Context, g *gitx.Git, s config.Skill, url string, de
 	if head != s.Commit || !detached {
 		return apperr.ForRepo(apperr.CloneFailed, s.Name, "clone of %s is at %s, not detached at %s", url, head, s.Commit)
 	}
-	if e := verifySubdir(dest, s); e != nil {
+	if e := verifySingle(dest, s); e != nil {
 		return e
 	}
 	return nil
+}
+
+// verifySingle is verifySubdir for an entry that is a single skill; a group
+// passes, since its members are checked one by one.
+func verifySingle(checkoutPath string, s config.Skill) *apperr.Error {
+	if s.IsGroup() {
+		return nil
+	}
+	return verifySubdir(checkoutPath, s.Name, s.Subdir, s.Commit)
 }
 
 // headState returns the commit HEAD points to, empty when there is none,
@@ -230,30 +242,31 @@ func hasCommit(ctx context.Context, g *gitx.Git, dir string, commit string) (boo
 	return err == nil, err
 }
 
-// verifySubdir requires subdir/SKILL.md to be a regular file that, with
-// every symlink resolved, stays inside the checkout.
-func verifySubdir(checkoutPath string, s config.Skill) *apperr.Error {
-	where := fmt.Sprintf("subdir %q at %s", s.Subdir, s.Commit)
+// verifySubdir requires subdir/SKILL.md of the skill called name to be a
+// regular file that, with every symlink resolved, stays inside the checkout
+// at commit.
+func verifySubdir(checkoutPath string, name string, subdir string, commit string) *apperr.Error {
+	where := fmt.Sprintf("subdir %q at %s", subdir, commit)
 	rootReal, err := filepath.EvalSymlinks(checkoutPath)
 	if err != nil {
-		return apperr.ForRepo(apperr.SkillInvalid, s.Name, "cannot resolve the checkout for %s: %v", where, err)
+		return apperr.ForRepo(apperr.SkillInvalid, name, "cannot resolve the checkout for %s: %v", where, err)
 	}
-	dir := filepath.Join(checkoutPath, filepath.FromSlash(s.Subdir))
+	dir := filepath.Join(checkoutPath, filepath.FromSlash(subdir))
 	for _, path := range []string{dir, filepath.Join(dir, File)} {
 		real, err := filepath.EvalSymlinks(path)
 		if errors.Is(err, fs.ErrNotExist) {
-			return apperr.ForRepo(apperr.SkillInvalid, s.Name, "no %s in %s", File, where)
+			return apperr.ForRepo(apperr.SkillInvalid, name, "no %s in %s", File, where)
 		}
 		if err != nil {
-			return apperr.ForRepo(apperr.SkillInvalid, s.Name, "cannot resolve %s: %v", where, err)
+			return apperr.ForRepo(apperr.SkillInvalid, name, "cannot resolve %s: %v", where, err)
 		}
 		if real != rootReal && !strings.HasPrefix(real, rootReal+string(filepath.Separator)) {
-			return apperr.ForRepo(apperr.SkillInvalid, s.Name, "%s resolves outside the checkout", where)
+			return apperr.ForRepo(apperr.SkillInvalid, name, "%s resolves outside the checkout", where)
 		}
 	}
 	info, err := os.Stat(filepath.Join(dir, File))
 	if err != nil || !info.Mode().IsRegular() {
-		return apperr.ForRepo(apperr.SkillInvalid, s.Name, "no %s in %s", File, where)
+		return apperr.ForRepo(apperr.SkillInvalid, name, "no %s in %s", File, where)
 	}
 	return nil
 }

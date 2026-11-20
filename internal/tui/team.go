@@ -123,13 +123,17 @@ func (m *Model) submitSkill(values []string) (tea.Cmd, error) {
 	if url == "" {
 		return nil, apperr.New(apperr.Usage, msgURLRequired)
 	}
-	params := core.AddSkillParams{URL: url, Name: optional(values[1]), Subdir: optional(values[2]), Commit: optional(values[3])}
+	params := core.AddSkillParams{URL: url, Name: optional(values[1]), Commit: optional(values[3])}
+	// A blank subdir lists the remote's skills, as `skill add` without
+	// --subdir does.
+	if subdir := optional(values[2]); subdir != nil {
+		params.Subdirs = []string{*subdir}
+	}
 	return m.start(jobSkillAdd, func(ctx context.Context, _ core.Output) ([]string, bool, error) {
 		result, err := m.actions.AddSkill(ctx, params)
 		lines := detectedLines(result.DetectedProtocol)
 		if err == nil {
-			entry := result.Skill
-			lines = append(lines, fmt.Sprintf("added skill %s at %s (subdir %s)", entry.Name, entry.Commit, entry.Subdir))
+			lines = append(lines, result.Lines()...)
 		}
 		return lines, true, err
 	}), nil

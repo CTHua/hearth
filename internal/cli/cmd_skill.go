@@ -48,13 +48,16 @@ func runSkillAdd(ctx context.Context, s streams, g globals, args []string) error
 	fs := newFlagSet("skill add")
 	name := fs.String(flagName, "", "")
 	commit := fs.String(flagCommit, "", "")
-	subdir := fs.String(flagSubdir, config.RootSubdir, "")
+	var subdirs listFlag
+	fs.Var(&subdirs, flagSubdir, "")
 	positional, help, err := parseArgs(fs, args)
 	if err != nil {
 		return err
 	}
 	if help {
-		fmt.Fprintf(s.out, "usage: %s skill add <url> [--name <name>] [--commit <sha>] [--subdir <dir>]\n", brand.Name)
+		fmt.Fprintf(s.out, "usage: %s skill add <url> [--name <name>] [--commit <sha>] [--subdir <dir>]...\n", brand.Name)
+		fmt.Fprintln(s.out, "  no --subdir: list the skills of <url>; one becomes a skill, several a group")
+		fmt.Fprintln(s.out, "  several --subdir: a group of exactly those; with --name <group>, add them to that group")
 		return nil
 	}
 	if len(positional) != 1 {
@@ -66,19 +69,20 @@ func runSkillAdd(ctx context.Context, s streams, g globals, args []string) error
 	}
 	given := setFlags(fs)
 	params := core.AddSkillParams{
-		URL:    positional[0],
-		Name:   givenValue(given, flagName, name),
-		Commit: givenValue(given, flagCommit, commit),
-		Subdir: givenValue(given, flagSubdir, subdir),
+		URL:     positional[0],
+		Name:    givenValue(given, flagName, name),
+		Commit:  givenValue(given, flagCommit, commit),
+		Subdirs: subdirs,
 	}
 	result, err := core.New(home).AddSkill(ctx, params)
 	printDetected(s, result.DetectedProtocol)
 	if err != nil {
 		return err
 	}
-	entry := result.Skill
-	fmt.Fprintf(s.out, "added skill %s at %s (subdir %s)\n", entry.Name, entry.Commit, entry.Subdir)
-	fmt.Fprintf(s.out, "to use it: `%s skill enable %s`, then `%s skill sync`\n", brand.Name, entry.Name, brand.Name)
+	for _, line := range result.Lines() {
+		fmt.Fprintln(s.out, line)
+	}
+	fmt.Fprintln(s.out, result.EnableHint())
 	fmt.Fprintln(s.out, brand.TeamFileChangedHint)
 	return nil
 }
@@ -90,7 +94,8 @@ func runSkillRemove(_ context.Context, s streams, g globals, args []string) erro
 		return err
 	}
 	if help {
-		fmt.Fprintf(s.out, "usage: %s skill remove <name>\n", brand.Name)
+		fmt.Fprintf(s.out, "usage: %s skill remove <name>|<group>|<group>/<name>\n", brand.Name)
+		fmt.Fprintln(s.out, "  a group removes the whole entry; a member leaves its group; <group>/<name> picks the group when several have that name")
 		return nil
 	}
 	if len(positional) != 1 {
@@ -103,6 +108,12 @@ func runSkillRemove(_ context.Context, s streams, g globals, args []string) erro
 	result, err := core.New(home).RemoveSkill(positional[0])
 	if err != nil {
 		return err
+	}
+	if result.Group != "" {
+		fmt.Fprintf(s.out, "removed skill %s from group %s in %s\n", result.Name, result.Group, brand.TeamFile)
+		fmt.Fprintf(s.out, "the next `%s skill sync` removes its links\n", brand.Name)
+		fmt.Fprintln(s.out, brand.TeamFileChangedHint)
+		return nil
 	}
 	fmt.Fprintf(s.out, "removed skill %s from %s\n", result.Name, brand.TeamFile)
 	fmt.Fprintf(s.out, "the next `%s skill sync` removes its links", brand.Name)
@@ -122,7 +133,7 @@ func runSkillUpdate(ctx context.Context, s streams, g globals, args []string) er
 		return err
 	}
 	if help {
-		fmt.Fprintf(s.out, "usage: %s skill update <name> [--commit <sha>]\n", brand.Name)
+		fmt.Fprintf(s.out, "usage: %s skill update <name>|<group> [--commit <sha>]\n", brand.Name)
 		return nil
 	}
 	if len(positional) != 1 {
@@ -216,17 +227,21 @@ func runSkillList(ctx context.Context, s streams, g globals, args []string) erro
 		return err
 	}
 	table := tabwriter.NewWriter(s.out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(table, "NAME\tSOURCE\tENABLED\tSTATUS\tDETAIL")
+	fmt.Fprintln(table, "NAME\tGROUP\tSOURCE\tENABLED\tSTATUS\tDETAIL")
 	for _, row := range rows {
 		source := string(row.Source)
 		if source == "" {
 			source = noSource
 		}
+		group := row.Group
+		if group == "" {
+			group = noSource
+		}
 		enabled := noLabel
 		if row.Enabled {
 			enabled = yesLabel
 		}
-		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\n", row.Name, source, enabled, row.State, row.Detail)
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", row.Name, group, source, enabled, row.State, row.Detail)
 	}
 	if err := table.Flush(); err != nil {
 		return err

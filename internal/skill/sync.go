@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/CTHua/hearth/internal/apperr"
 	"github.com/CTHua/hearth/internal/brand"
@@ -61,14 +63,18 @@ func (t *tally) record(err error) (bool, error) {
 
 // CloneURLs returns the team-file URLs of the chosen external skills whose
 // checkout is not at its pin, so the caller can settle the protocol before
-// Sync needs the network. It only reads.
+// Sync needs the network; a group's URL is in it once, however many of its
+// members are chosen. It only reads.
 func CloneURLs(ctx context.Context, g *gitx.Git, home *config.Home, cat Catalog) ([]string, error) {
 	var urls []string
+	checked := map[string]bool{}
 	for _, item := range choose(home, cat).wanted {
-		if item.Source != External || item.Invalid != "" {
+		entry := strings.ToLower(item.Skill.Name)
+		if item.Source != External || item.Invalid != "" || checked[entry] {
 			continue
 		}
-		state, err := externalState(ctx, g, home.Root, item.Skill)
+		checked[entry] = true
+		state, err := checkoutState(ctx, g, home.Root, item.Skill)
 		if err != nil {
 			return nil, err
 		}
@@ -140,12 +146,43 @@ func Sync(ctx context.Context, g *gitx.Git, home *config.Home, cat Catalog, out 
 
 // installAll brings every chosen skill into place and returns the ones
 // ready to be linked; the built-in skill is removed when no agent is chosen.
+// A group's checkout is installed once, for its first valid chosen member,
+// and then every chosen member is checked in it on its own.
 func installAll(ctx context.Context, g *gitx.Git, home *config.Home, sel selection, t *tally, out io.Writer) ([]Item, error) {
 	var ready []Item
 	builtinWanted := false
+	// groups maps the lowercase name of each group already installed to
+	// whether its checkout is in place.
+	groups := map[string]bool{}
 	for _, item := range sel.wanted {
 		if item.Invalid != "" {
 			t.fail(apperr.ForRepo(apperr.SkillInvalid, item.Name, "%s; not linked", item.Invalid))
+			continue
+		}
+		if item.Group != "" {
+			key := strings.ToLower(item.Group)
+			inPlace, seen := groups[key]
+			if !seen {
+				line, err := installItem(ctx, g, home, item, t.errw)
+				failed, err := t.record(err)
+				if err != nil {
+					return nil, err
+				}
+				inPlace = !failed
+				groups[key] = inPlace
+				if inPlace && line != "" {
+					fmt.Fprintln(out, line)
+				}
+			}
+			if !inPlace {
+				continue
+			}
+			target := filepath.Join(home.Root, filepath.FromSlash(VendorDir+pathSeparator+item.Skill.Name))
+			if e := verifySubdir(target, item.Name, item.Subdir, item.Skill.Commit); e != nil {
+				t.fail(e)
+				continue
+			}
+			ready = append(ready, item)
 			continue
 		}
 		line, err := installItem(ctx, g, home, item, t.errw)

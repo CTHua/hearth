@@ -11,7 +11,7 @@ import (
 )
 
 func TestLoadAndWriteSubagents(t *testing.T) {
-	root := writeFiles(t, header, "schema_version = 1\nmcp = [\"docs\"]\nsubagents = [\"code-reviewer\", \"gone\"]\n")
+	root := writeFiles(t, header, "schema_version = 2\nmcp = [\"docs\"]\nsubagents = [\"code-reviewer\", \"gone\"]\n")
 	home, err := config.Load(root, released)
 	if err != nil {
 		t.Fatal(err)
@@ -22,7 +22,7 @@ func TestLoadAndWriteSubagents(t *testing.T) {
 	if err := config.WritePersonal(root, home.Personal.WithSubagents([]string{"reviewer"})); err != nil {
 		t.Fatal(err)
 	}
-	if got := readText(t, filepath.Join(root, brand.LocalFile)); got != "schema_version = 1\nmcp = [\"docs\"]\nsubagents = [\"reviewer\"]\n" {
+	if got := readText(t, filepath.Join(root, brand.LocalFile)); got != "schema_version = 2\nmcp = [\"docs\"]\nsubagents = [\"reviewer\"]\n" {
 		t.Errorf("personal file %q", got)
 	}
 }
@@ -44,7 +44,7 @@ func TestSubagentNameRule(t *testing.T) {
 		"subagents = \"a\"\n":          "subagents: must be an array of strings",
 	}
 	for body, want := range personal {
-		lines, _ := loadErrors(t, writeFiles(t, header, "schema_version = 1\n"+body), released)
+		lines, _ := loadErrors(t, writeFiles(t, header, "schema_version = 2\n"+body), released)
 		if !strings.Contains(lines, brand.LocalFile+": "+want) {
 			t.Errorf("%q: %s", body, lines)
 		}

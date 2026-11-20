@@ -59,8 +59,14 @@ type Item struct {
 	Source Source
 	// Dir is the skill directory links point to, relative to the root.
 	Dir string
-	// Skill is the team-file entry of an external skill.
+	// Skill is the team-file entry of an external skill; for a group member
+	// it is the whole group.
 	Skill config.Skill
+	// Group is the name of the group an external skill belongs to; it is
+	// empty for a skill that is an entry of its own.
+	Group string
+	// Subdir is where an external skill sits inside its entry's checkout.
+	Subdir string
 	// Invalid explains why the skill cannot be chosen or linked; it is empty
 	// when it can.
 	Invalid string
@@ -78,7 +84,14 @@ type Catalog struct {
 func Discover(home *config.Home) (Catalog, error) {
 	var items []Item
 	for _, s := range home.Team.Skills {
-		items = append(items, Item{Name: s.Name, Source: External, Dir: externalDir(s), Skill: s})
+		if !s.IsGroup() {
+			items = append(items, Item{Name: s.Name, Source: External, Dir: externalDir(s, s.Subdir), Skill: s, Subdir: s.Subdir})
+			continue
+		}
+		for _, subdir := range s.Subdirs {
+			member := Item{Name: config.MemberName(subdir), Source: External, Dir: externalDir(s, subdir), Skill: s, Group: s.Name, Subdir: subdir}
+			items = append(items, member)
+		}
 	}
 	team, err := teamItems(home.Root)
 	if err != nil {
@@ -105,6 +118,19 @@ func (c Catalog) Find(name string) (Item, bool) {
 	return Item{}, false
 }
 
+// Members returns the skills of the group called group, compared
+// case-insensitively, in the order of its subdirs; none when no group has
+// that name.
+func (c Catalog) Members(group string) []Item {
+	var members []Item
+	for _, item := range c.items {
+		if item.Group != "" && strings.EqualFold(item.Group, group) {
+			members = append(members, item)
+		}
+	}
+	return members
+}
+
 // Choosable lists the names a person may enable: valid skills that are not
 // built in.
 func (c Catalog) Choosable() []string {
@@ -117,12 +143,13 @@ func (c Catalog) Choosable() []string {
 	return names
 }
 
-func externalDir(s config.Skill) string {
+// externalDir is the directory of the skill at subdir in the checkout of s.
+func externalDir(s config.Skill, subdir string) string {
 	dir := VendorDir + pathSeparator + s.Name
-	if s.Subdir == config.RootSubdir {
+	if subdir == config.RootSubdir {
 		return dir
 	}
-	return dir + pathSeparator + s.Subdir
+	return dir + pathSeparator + subdir
 }
 
 // teamItems lists skills/<dir>/ entries holding a SKILL.md. Templates start

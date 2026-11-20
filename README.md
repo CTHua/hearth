@@ -171,12 +171,16 @@ The add form for MCP servers takes a command, URL, and environment variable name
 
 ```sh
 hearth skill add https://git.example.com/acme/skills.git --subdir pdf   # pins the remote's HEAD
+hearth skill add https://git.example.com/acme/toolkit.git               # lists its skills; several become one group
+hearth skill enable toolkit                                             # a group's name enables all of its skills
 hearth mcp add docs --env-var DOCS_TOKEN -- npx -y @acme/docs-mcp       # stdio server
 hearth mcp add tracker --url https://mcp.example.com/mcp --bearer-token-env TRACKER_TOKEN
 hearth repo fix-remote            # points origin at the expected URL when only the protocol differs
 ```
 
 `hearth repo remove` edits `hearth.toml` only and keeps the checkout.
+
+A repo that holds several skills is added as one group: a single `[[skills]]` entry with `subdirs` instead of `subdir`, one commit and one checkout in `vendor/skills/<group>` for all of them. Without `--subdir`, `skill add` clones the repo into the system's temporary directory without a checkout, lists every `SKILL.md`, and removes the clone; when the repo has `.claude-plugin/plugin.json`, its `skills` paths pick the members and its `name` names the group. Each skill keeps the last segment of its directory as its name, so `skill enable grilling` turns on one and `skill enable <group>` all of them. `skill remove <member>` takes one skill out of its group (`skill remove <group>/<member>` when several groups have a skill of that name), and `skill update <group>` moves the whole group's pin. `skill list` shows a `GROUP` column.
 
 Exit codes: `0` success, `1` a repo, skill, or generated file failed, `2` config, usage, environment, or version error, `130` interrupted. Errors print as `error [<category>] <message>`.
 
@@ -192,6 +196,8 @@ hearth upgrade
 ```
 
 `upgrade` rewrites only the text between the `hearth:begin` and `hearth:end` markers in `AGENTS.md` and `.gitignore`, and moves both config files to the current `schema_version`. Everything outside the markers stays byte for byte the same. If a marker is missing, repeated, or out of order, it exits 2 and writes nothing.
+
+hearth 0.2.0 reads only `schema_version = 2`, which added skill groups. Its `upgrade` changes just two values in place: `schema_version` from 1 to 2 in both files, and `min_hearth_version` in `hearth.toml` to `0.2.0` when it is lower. Comments, blank lines and key order are kept. Commit the upgraded `hearth.toml` in a PR; teammates on 0.1.0 then need to install 0.2.0, and each person runs `hearth upgrade` once for their own `hearth.local.toml`.
 
 ## Known limitations
 

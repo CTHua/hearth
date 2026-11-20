@@ -21,7 +21,8 @@ const (
 	hintFromURL     = "from the URL"
 	hintAskRemote   = "ask the remote"
 	hintRemoteHead  = "the remote's HEAD (needs the network)"
-	hintTopOfRepo   = config.RootSubdir + " (the top of the repo)"
+	hintFindSkills  = "blank finds every SKILL.md; " + config.RootSubdir + " is the top"
+	hintFromSkills  = "from what is found"
 	hintMCPName     = "letters, digits, - and _"
 	hintCommand     = "for a stdio server: command args"
 	hintMCPURL      = "or an http server"
@@ -29,7 +30,7 @@ const (
 	hintOptional    = "optional"
 	pathSep         = "/"
 	noteRepo        = "c clones it later."
-	noteSkill       = "a blank commit pins the remote's HEAD."
+	noteSkill       = "A blank subdir lists the repo's skills: one is added alone, several as a group. A blank commit pins the remote's HEAD."
 	noteMCP         = "Fill command or URL, not both. Tokens and headers of an http server are set with the CLI."
 	noteUpdateSkill = "A blank commit moves the pin to the remote's HEAD."
 	formTitleRepo   = "Add repo"
@@ -83,16 +84,20 @@ func repoForm() *form {
 }
 
 // skillForm asks for a new external skill; the name hint follows core: the
-// last subdir segment, or the URL's name at the top of the repo.
+// last subdir segment, the URL's name at the top of the repo, and with a
+// blank subdir whatever the listing of the remote finds.
 func skillForm() *form {
 	return newForm(formTitleSkill, noteSkill, []string{labelURL, labelName, labelSubdir, labelCommit}, func(values []string) []string {
 		name := urlName(values[0])
 		subdir := strings.Trim(strings.TrimSpace(values[2]), pathSep)
-		if subdir != "" && subdir != config.RootSubdir {
+		switch {
+		case subdir == "":
+			name = hintFromSkills
+		case subdir != config.RootSubdir:
 			segments := strings.Split(subdir, pathSep)
 			name = segments[len(segments)-1]
 		}
-		return []string{hintURL, name, hintTopOfRepo, hintRemoteHead}
+		return []string{hintURL, name, hintFindSkills, hintRemoteHead}
 	})
 }
 
