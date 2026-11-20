@@ -13,9 +13,6 @@ hearth sets up and maintains a team's Home Repo: one Git repo that holds the rul
 
 ![The Mine tab of the hearth terminal UI: protocol, agents, and on/off switches for each skill, MCP server, and subagent](docs/images/tui-mine.png)
 
-> [!NOTE]
-> hearth is pre-release. There is no tagged release yet, and the config file formats may still change before the first one.
-
 ## Contents
 
 - [Requirements](#requirements)
@@ -44,8 +41,6 @@ hearth sets up and maintains a team's Home Repo: one Git repo that holds the rul
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CTHua/hearth/main/install.sh | sh
 ```
-
-This needs a published GitHub Release, and hearth has none yet. Until the first Release, install from source with `go install` below.
 
 The script picks the archive for your platform (`darwin` or `linux`, `amd64` or `arm64`), downloads it with `SHA256SUMS` from the Release, checks the SHA-256, and installs `hearth` into `~/.local/bin`. It does not use sudo or edit your shell profile; when the directory is not on your `PATH`, it prints the line to add. If the checksum does not match, nothing is installed and an existing `hearth` stays as it was.
 
