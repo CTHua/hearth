@@ -19,13 +19,18 @@ const (
 )
 
 // globalSettings make any URL that was not redirected to a local path fail
-// instead of reaching the network.
+// instead of reaching the network, and keep git from starting maintenance in
+// the background: after a commit it would hold .git/objects/maintenance.lock
+// for a moment, which a test comparing a checkout before and after sees as
+// a change.
 var globalSettings = [][2]string{
 	{"user.name", "test"},
 	{"user.email", "test@example.invalid"},
 	{"init.defaultBranch", "main"},
 	{"protocol.allow", "never"},
 	{"protocol.file.allow", "always"},
+	{"maintenance.auto", "false"},
+	{"gc.auto", "0"},
 }
 
 // Main prepares the environment for every test in a package and runs them.
