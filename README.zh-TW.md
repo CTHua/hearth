@@ -13,9 +13,6 @@ hearth 幫團隊建立並維護 Home Repo：一個 Git repo，放工程師和 AI
 
 ![hearth 終端介面的 Mine 分頁：protocol、agent，以及每個 skill、MCP server、subagent 的開關](docs/images/tui-mine.png)
 
-> [!NOTE]
-> hearth 還沒正式發布，也還沒有 tag 過的 release。第一次發布前，設定檔格式還可能改。
-
 ## 目錄
 
 - [環境需求](#環境需求)
@@ -44,8 +41,6 @@ hearth 幫團隊建立並維護 Home Repo：一個 Git repo，放工程師和 AI
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CTHua/hearth/main/install.sh | sh
 ```
-
-這要有已發布的 GitHub Release，目前 hearth 還沒有。第一個 Release 出來之前，請用下面的 `go install` 從原始碼安裝。
 
 腳本會挑這台平台的壓縮檔（`darwin` 或 `linux`，`amd64` 或 `arm64`），連同 `SHA256SUMS` 從 Release 下載，驗過 SHA-256 後把 `hearth` 裝到 `~/.local/bin`。不用 sudo，也不改 shell 設定檔；安裝目錄不在 `PATH` 上時，會印出要加的那一行。checksum 不符時什麼都不裝，原本的 `hearth` 不動。
 

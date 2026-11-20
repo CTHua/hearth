@@ -43,10 +43,9 @@
 - 測試只碰公開介面，不連網路。要用 git 的測試在 `TestMain` 呼叫 `gittest.Main`，遠端用 `gittest.BareRemote` 和 `gittest.Redirect`。
 - 相依只有 `github.com/BurntSushi/toml`、讀 subagent frontmatter 的 `go.yaml.in/yaml/v3`、TUI 用的 Charm 套件（`charm.land/bubbletea/v2`、`charm.land/bubbles/v2`、`charm.land/lipgloss/v2`）和判斷 TTY 的 `github.com/charmbracelet/x/term`。新增或升級相依先討論。
 - 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。
-  - 例外：第一次發布前只有開發者自己用（2026-11-17 定），P2 加的 `[[skills]]`、`agents`、`skills` 和 P3 加的 `[[mcp]]`、`mcp`、P6 加的 `subagents`、`[[repos]]` 的選填 `description`（2026-11-18）直接加進 `schema_version = 1`，不寫遷移。發布之後這條例外失效。
 - 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。
 - agent 的 MCP 設定（`.mcp.json`、`.codex/config.toml`）和 `.hearth/state.json` 只由 `hearth sync` / `hearth mcp sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫。秘密只寫環境變數名稱。
 - subagent 的產出檔（`.claude/agents/<name>.md`、`.codex/agents/<name>.toml`）只由 `hearth sync` / `hearth subagent sync` 從 `subagents/` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。規則同 MCP：被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫；沒記錄、也不在這次目標裡的檔不碰。
 - skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth sync` / `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
-- 發布：產物檔名 `hearth_<os>_<arch>.tar.gz`、`SHA256SUMS` 的格式（`<64 個 hex><兩個空白><檔名>`，照檔名排序）、`install.sh` 的三個環境變數（`HEARTH_VERSION`、`HEARTH_INSTALL_DIR`、`HEARTH_BASE_URL`）是對外的契約，第一個 Release 之後改了就會弄壞別人的安裝。發版步驟：在 Actions 手動觸發 `release` 做 dry-run → 打 `v<MAJOR.MINOR.PATCH>` tag 並 push → 檢查 draft Release 的產物 → 按 Publish → 拿掉 README 的 pre-release 註記，和上面 `schema_version` 的發布前例外。`main` 上的 `install.sh` 一改就影響所有新安裝的人。
+- 發布：產物檔名 `hearth_<os>_<arch>.tar.gz`、`SHA256SUMS` 的格式（`<64 個 hex><兩個空白><檔名>`，照檔名排序）、`install.sh` 的三個環境變數（`HEARTH_VERSION`、`HEARTH_INSTALL_DIR`、`HEARTH_BASE_URL`）是對外的契約，第一個 Release 之後改了就會弄壞別人的安裝。發版步驟：在 Actions 手動觸發 `release` 做 dry-run → 打 `v<MAJOR.MINOR.PATCH>` tag 並 push → 檢查 draft Release 的產物 → 按 Publish → 確認發布出去的 Release 有 5 個產物，再跑一次 `install.sh`。`main` 上的 `install.sh` 一改就影響所有新安裝的人。
 - 未經要求不 commit、不 push、不打 tag、不發 Release。
