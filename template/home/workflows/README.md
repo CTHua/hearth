@@ -1,11 +1,11 @@
 # Workflows
 
-跨產品共通的最小流程。產品 repo 有自己的流程時，產品內的步驟照產品的規範。
+Minimal workflows shared across products. When a product repo has its own process, the steps inside that product follow the product's rules.
 
-| 檔案 | 什麼時候用 |
+| File | When to use |
 | --- | --- |
-| `development.md` | 在單一產品 repo 開發 |
-| `code-review.md` | review 一個改動或 PR |
-| `cross-repo-change.md` | 一個需求要改兩個以上的 repo |
+| `development.md` | Developing in a single product repo |
+| `code-review.md` | Reviewing a change or a PR |
+| `cross-repo-change.md` | One requirement needs changes in two or more repos |
 
-流程的修改走 PR review。
+Changes to the workflows go through PR review.

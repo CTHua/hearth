@@ -1,86 +1,86 @@
 # Agents
 
-把任務交給另一個 agent（另一個 coding agent、subagent 或同事的 agent session）時用的 prompt 模板。
+Prompt templates for handing a task to another agent (another coding agent, a subagent, or a teammate's agent session).
 
-## 這個目錄不會被自動發現
+## Nothing discovers this directory automatically
 
-- 沒有任何 agent 工具會自動讀 `agents/`。它只是一般資料夾，要用時自己打開模板、複製內容、填好再貼給 agent。
-- 有些工具有自己的自動載入位置，例如 Claude Code 的 `.claude/agents/`、Codex 的 `.codex/agents/`。subagent 定義寫在 [`../subagents/`](../subagents/)，每個人用 `hearth subagent enable <name>` 選、跑 `hearth sync` 後才產生到那兩個位置，見下面的「模型設定」；這個目錄的模板不會被搬過去。
-- 共同規則仍然只寫在 [`AGENTS.md`](../AGENTS.md)。模板只放「這次要交辦什麼」，不複製規則。
+- No agent tool reads `agents/` on its own. It is an ordinary folder: when you need a template, open it, copy the contents, fill them in, and paste them to the agent.
+- Some tools have their own auto-load locations, such as Claude Code's `.claude/agents/` and Codex's `.codex/agents/`. Subagent definitions live in [`../subagents/`](../subagents/); they are generated into those two locations only after each person picks them with `hearth subagent enable <name>` and runs `hearth sync`; see "Model settings" below. The templates in this directory are not moved there.
+- Shared rules still live only in [`AGENTS.md`](../AGENTS.md). Templates hold only "what this hand-off is"; they do not copy the rules.
 
-## 有哪些模板
+## Templates
 
-| 檔案 | 什麼時候用 |
+| File | When to use |
 | --- | --- |
-| [`_task-brief.md`](_task-brief.md) | 把一個開發或 review 任務交給另一個 agent |
-| [`models.json`](models.json) | 查主對話和 subagent 預設用哪個模型、哪個 effort |
+| [`_task-brief.md`](_task-brief.md) | Hand a development or review task to another agent |
+| [`models.json`](models.json) | Look up which model and which effort the main conversation and subagents use by default |
 
-## 模型設定（Claude Code、Anthropic API）
+## Model settings (Claude Code, Anthropic API)
 
-只涵蓋 Claude Code 直接連 Anthropic API 的情況。
+This covers only Claude Code connecting directly to the Anthropic API.
 
-| 檔案 | 誰會讀 | 內容 |
+| File | Who reads it | Contents |
 | --- | --- | --- |
-| [`models.json`](models.json) | 沒有程式讀，給人看的紀錄 | 每個角色的 provider、alias、model ID、effort |
-| [`../.claude/settings.json`](../.claude/settings.json) | Claude Code | 只有 `env`：`CLAUDE_CODE_SUBAGENT_MODEL=sonnet` |
-| [`../subagents/subagent.md`](../subagents/subagent.md) | `hearth sync` 轉成 Claude Code 的 `.claude/agents/subagent.md` | 通用 subagent，`claude:` 底下 `model: sonnet`、`effort: medium`；預設不開，要用的人 `hearth subagent enable subagent` |
+| [`models.json`](models.json) | No program; it is a record for people | Each role's provider, alias, model ID, effort |
+| [`../.claude/settings.json`](../.claude/settings.json) | Claude Code | Only `env`: `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` |
+| [`../subagents/subagent.md`](../subagents/subagent.md) | `hearth sync` turns it into Claude Code's `.claude/agents/subagent.md` | A general-purpose subagent, with `model: sonnet` and `effort: medium` under `claude:`; off by default; to use it, run `hearth subagent enable subagent` |
 
-這三個檔案要保持一致：settings 的 `env` 不放憑證或其他 provider 的開關，subagent 的 `model` 和 `effort` 跟 `models.json` 相同。改了其中一個，另外兩個要一起改，在 PR review 時對照。
+Keep these three files consistent: the settings' `env` holds no credentials or other providers' switches, and the subagent's `model` and `effort` match `models.json`. When you change one, change the other two with it, and compare them during PR review.
 
-### 預設值
+### Defaults
 
-| 角色 | alias | 2026-11-16 解析成 | effort |
+| Role | alias | Resolved on 2026-11-16 to | effort |
 | --- | --- | --- | --- |
 | main | `opus` | `claude-opus-5-5` | `medium` |
 | subagent | `sonnet` | `claude-sonnet-5-5` | `medium` |
 
-- 這些是可以換掉的預設，不保證永遠可用。
-- alias 在 Anthropic API 上會解析成最新版；`model` 欄位只記錄查的那天解析出來的 ID，新版推出後兩者會不同。
-- 要固定版本：把 `.claude/settings.json` 和 `subagents/subagent.md` 的值改成完整 model ID（例如 `claude-sonnet-5-5`），再同步改 `models.json`。
+- These are defaults you can replace, not guaranteed to stay available.
+- On the Anthropic API an alias resolves to the latest version; the `model` field only records the ID it resolved to on the day it was checked, so the two differ once a new version ships.
+- To pin a version: change the values in `.claude/settings.json` and `subagents/subagent.md` to a full model ID (for example `claude-sonnet-5-5`), then update `models.json` to match.
 
-### 主對話的模型不寫死
+### The main conversation's model is not hard-coded
 
-`.claude/settings.json` 不設 `model`，主對話用哪個模型由啟動的人決定：
+`.claude/settings.json` does not set `model`; whoever starts the session decides which model the main conversation uses:
 
 ```sh
 claude --model opus --effort medium
 ```
 
-或在 session 裡用 `/model`、`/effort` 切換。注意 `/model` 會把選擇寫進你個人的 user settings，變成之後新 session 的預設。
+Or switch with `/model` and `/effort` inside the session. Note that `/model` writes the choice into your personal user settings, and it becomes the default for later new sessions.
 
-### subagent 用哪個模型
+### Which model a subagent uses
 
-Claude Code 依下面的順序，取第一個有設定的：
+Claude Code takes the first one that is set, in this order:
 
-1. 主對話叫用 subagent 時傳的 `model` 參數（只能是 alias）
-2. subagent 定義的 `model` 欄位
+1. The `model` parameter the main conversation passes when it invokes the subagent (alias only)
+2. The `model` field in the subagent definition
 3. `CLAUDE_CODE_SUBAGENT_MODEL`
-4. 主對話目前的模型
+4. The main conversation's current model
 
-所以：
+So:
 
-- 沒指定 `model` 的 subagent 會跟著主對話的模型走，`/model` 一切換就跟著變。`subagent.md` 因此明確寫 `model: sonnet`。
-- `CLAUDE_CODE_SUBAGENT_MODEL` 只影響沒有自己 `model` 的 subagent，例如 built-in 的 general-purpose；它單獨設定時改不了 built-in 的 Explore 和 Plan，這兩個照主對話的模型。
-- 主對話仍然可以在叫用時傳 `model` 參數蓋過 `subagent.md`。要強制所有 subagent 都用同一個模型，在自己的設定加 `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`；這個模板沒有加。
+- A subagent without a `model` follows the main conversation's model and changes as soon as `/model` switches it. That is why `subagent.md` states `model: sonnet` explicitly.
+- `CLAUDE_CODE_SUBAGENT_MODEL` affects only subagents without their own `model`, such as the built-in general-purpose; set on its own, it does not change the built-in Explore and Plan, which follow the main conversation's model.
+- The main conversation can still override `subagent.md` by passing a `model` parameter when it invokes a subagent. To force every subagent onto the same model, add `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` to your own settings; this template does not add it.
 
-### 不涵蓋的
+### Not covered
 
-- Amazon Bedrock、Google Vertex AI、Microsoft Foundry、LLM gateway：alias 在這些平台可能解析成別的版本，這份設定沒有測，也不處理。
-- Codex、Grok 和其他 agent 工具：各自用自己的設定檔，這份設定控制不到它們。
-- 憑證：API key、token、base URL 不寫進 `.claude/settings.json`，它會進版控。放在自己的環境變數，或被 `.gitignore` 忽略的 `.claude/settings.local.json`。
+- Amazon Bedrock, Google Vertex AI, Microsoft Foundry, LLM gateways: an alias may resolve to a different version on these platforms; this config is not tested on them and does not handle them.
+- Codex, Grok, and other agent tools: each uses its own config file, which this config does not control.
+- Credentials: do not write API keys, tokens, or base URLs into `.claude/settings.json`; it goes into version control. Put them in your own environment variables, or in `.claude/settings.local.json`, which `.gitignore` ignores.
 
-官方文件：[Subagents](https://code.claude.com/docs/en/sub-agents)、[Model configuration](https://code.claude.com/docs/en/model-config)、[Environment variables](https://code.claude.com/docs/en/env-vars)。
+Official docs: [Subagents](https://code.claude.com/docs/en/sub-agents), [Model configuration](https://code.claude.com/docs/en/model-config), [Environment variables](https://code.claude.com/docs/en/env-vars).
 
-檔名以 `_` 開頭的是模板，不是內容。
+Files whose names start with `_` are templates, not content.
 
-## 怎麼新增
+## How to add one
 
-1. 複製 `_task-brief.md` 成新的 `_<name>.md`，或直接修改它。
-2. 只寫交辦時一定要給的欄位；共同規則用連結指到 `AGENTS.md`。
-3. 拿一個真實任務實際用一次，確認收到的 agent 不用再問就能開始。
-4. 開 PR。
+1. Copy `_task-brief.md` to a new `_<name>.md`, or edit it directly.
+2. Write only the fields a hand-off must include; link to `AGENTS.md` for the shared rules.
+3. Use it once on a real task and confirm the receiving agent can start without asking anything.
+4. Open a PR.
 
-## 不放這裡的
+## What does not go here
 
-- 秘密、憑證、token、客戶個資。
-- 只適用單一產品的 prompt：放那個產品的 repo。
+- Secrets, credentials, tokens, customer personal data.
+- Prompts that apply to only one product: put them in that product's repo.

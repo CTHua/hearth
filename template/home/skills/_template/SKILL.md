@@ -3,20 +3,20 @@ name:
 description:
 ---
 
-# <skill 名稱>
+# <Skill name>
 
-## 適用情境
+## When to use
 
-<!-- 什麼任務該用；什麼時候不該用 -->
+<!-- Which tasks should use it; when it should not be used -->
 
-## 前置條件
+## Prerequisites
 
-<!-- 需要的工具和權限；要在哪個 repo、什麼狀態下開始 -->
+<!-- The tools and permissions needed; which repo and state to start in -->
 
-## 步驟
+## Steps
 
 1.
 
-## 驗證方式
+## Verification
 
-<!-- 要跑的指令和預期結果 -->
+<!-- Commands to run and expected results -->

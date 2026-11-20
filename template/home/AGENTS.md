@@ -1,111 +1,111 @@
-# Home Repo 共同規則
+# Home Repo shared rules
 
-這份檔案是工程師和 AI coding agents 在這個 repo 工作時的共同規則，也是唯一來源。
-`CLAUDE.md` 只負責載入這份檔案；其他工具的入口檔也只指向這裡，不複製規則。
+This file holds the shared rules for engineers and AI coding agents working in this repo, and it is the single source for them.
+`CLAUDE.md` only loads this file; other tools' entry files also just point here and do not copy the rules.
 
 <!-- hearth:begin -->
-## hearth（這一段由 hearth 管理，之後的版本會整段重寫）
-- 安裝：`go install github.com/CTHua/hearth/cmd/hearth@latest`，其他方式見 https://github.com/CTHua/hearth 。升級 hearth 之後跑 `hearth upgrade`，更新這一段和 `.gitignore` 的標記區段。
-- clone 全部產品：`hearth clone`；看每個產品的狀態：`hearth repo list`；檢查環境和設定：`hearth doctor`；使用者在終端機不帶參數跑 `hearth` 會開互動介面，agent 不要跑。
-- 產品清單在 `hearth.toml`，每個產品的 `description` 說明它做什麼。要新增、移除產品或改 `description` 時，請使用者自己跑 `hearth repo add <url> [--description <text>]` / `hearth repo remove <name>` / `hearth repo describe <name> <text>`，不要手改 `hearth.toml`；agent 的 sandbox 可能擋掉寫入。
-- 每個人的 ssh／https 選擇在 `hearth.local.toml`（不進版控），用 `hearth config protocol` 查看或設定。
-- skill、MCP server 和 subagent：團隊清單用 `hearth skill add <url>` / `remove <name>`、`hearth mcp add <name>` / `remove <name>`，subagent 是 `subagents/<name>.md` 檔案，改檔走 PR；個人選擇用 `hearth skill enable` / `disable <name>`、`hearth mcp enable` / `disable <name>`、`hearth subagent enable` / `disable <name>`、`hearth config agents`，再由使用者跑 `hearth sync`；`hearth skill list`、`hearth mcp list`、`hearth subagent list` 看狀態。
+## hearth (hearth manages this section; later versions rewrite all of it)
+- Install: `go install github.com/CTHua/hearth/cmd/hearth@latest`; for other ways see https://github.com/CTHua/hearth . After upgrading hearth, run `hearth upgrade` to update this section and the marked section of `.gitignore`.
+- Clone all products: `hearth clone`; see each product's status: `hearth repo list`; check the environment and config: `hearth doctor`; running `hearth` with no arguments in a terminal opens the interactive UI for the user; agents must not run it.
+- The product list is in `hearth.toml`, and each product's `description` says what it does. To add or remove a product or change a `description`, ask the user to run `hearth repo add <url> [--description <text>]` / `hearth repo remove <name>` / `hearth repo describe <name> <text>` themselves; do not edit `hearth.toml` by hand; the agent's sandbox may block the write.
+- Each person's ssh/https choice is in `hearth.local.toml` (not in version control); view or set it with `hearth config protocol`.
+- Skills, MCP servers, and subagents: the team list uses `hearth skill add <url>` / `remove <name>` and `hearth mcp add <name>` / `remove <name>`; subagents are `subagents/<name>.md` files, changed through PRs; personal choices use `hearth skill enable` / `disable <name>`, `hearth mcp enable` / `disable <name>`, `hearth subagent enable` / `disable <name>`, `hearth config agents`, and then the user runs `hearth sync`; `hearth skill list`, `hearth mcp list`, `hearth subagent list` show the status.
 <!-- hearth:end -->
 
-## 這個 repo 是什麼
+## What this repo is
 
-Home Repo 是工程團隊的共同工作入口，集中放團隊記憶、skills、workflows 和產品 repo 清單。
+The Home Repo is the engineering team's shared starting point for work; it holds the team's memory, skills, workflows, and the list of product repos.
 
-產品程式碼不在這裡。每個產品是獨立的 Git repo，由 `hearth clone` clone 到 `products/`，各自版控、各自提交。
+Product code is not here. Each product is its own Git repo, cloned into `products/` by `hearth clone`, with its own version control and its own commits.
 
-## 目錄導覽
+## Directory guide
 
-| 路徑 | 內容 | 什麼時候讀 |
+| Path | Contents | When to read |
 | --- | --- | --- |
-| `README.md` | 環境需求、快速開始、`hearth` 指令和錯誤處理 | 第一次設定，或 `hearth` 出錯 |
-| `hearth.toml` | 產品 repo 清單（`[[repos]]`，`description` 說明每個產品做什麼）和釘在 commit 的外部 skill（`[[skills]]`） | 要判斷任務屬於哪個產品，或找產品 repo、外部 skill |
-| `hearth.local.toml` | 個人設定：`protocol`（`ssh` 或 `https`）、`agents`、`skills`、`mcp`、`subagents`。不在版控內 | 要知道使用者用哪個協定 clone、選了哪些 skill、MCP server 和 subagent |
-| `products/` | 產品 repo 的 checkout，位置是 `hearth.toml` 裡該產品的 `path`。不在 Home Repo 的版控內 | 任務指定的那個產品 |
-| `memory/decisions/` | 經確認的跨產品決策 | 任務涉及跨產品的設計或取捨 |
-| `memory/conventions/` | 團隊的習慣和慣例 | 動手前確認團隊約定的做法 |
-| `skills/<name>/SKILL.md` | 團隊自己寫的可重用操作步驟 | 任務符合某個 skill 的適用情境 |
-| `vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth sync` 產生的外部 skill checkout、內建 skill 和各 agent 的 link。不在版控內，不要手改 | 不用讀；agent 會從自己的 skills 目錄載入 |
-| `.mcp.json`、`.codex/config.toml` | `hearth sync` 照 `hearth.toml` 的 `[[mcp]]` 和個人選擇產生的 MCP 設定，只寫環境變數名稱。不在版控內，不要手改 | 不用讀；要改 MCP server 就改 `hearth.toml` |
-| `subagents/<name>.md` | 團隊的 subagent 定義，一份同時給 Claude Code 和 Codex；`claude:`、`codex:` 放各工具自己的欄位 | 要新增或修改 subagent 時 |
-| `.claude/agents/`、`.codex/agents/` | `hearth sync` 照 `subagents/` 和個人選擇產生的 subagent 檔。不在版控內，不要手改 | 不用讀；要改 subagent 就改 `subagents/<name>.md` |
-| `agents/` | 派工給另一個 agent 用的 prompt 模板；`agents/models.json` 記錄各角色的預設模型 | 要把任務交給另一個 agent 時 |
-| `.claude/settings.json` | Claude Code 的共用設定 | 要改 Claude Code 的模型設定時 |
-| `workflows/` | 開發、code review、跨 repo 變更的最小流程 | 開始對應類型的任務前 |
+| `README.md` | Requirements, quick start, `hearth` commands, and error handling | First-time setup, or when `hearth` fails |
+| `hearth.toml` | The product repo list (`[[repos]]`, with `description` saying what each product does) and external skills pinned to a commit (`[[skills]]`) | To decide which product a task belongs to, or to find a product repo or external skill |
+| `hearth.local.toml` | Personal settings: `protocol` (`ssh` or `https`), `agents`, `skills`, `mcp`, `subagents`. Not in version control | To know which protocol the user clones with and which skills, MCP servers, and subagents they picked |
+| `products/` | Checkouts of the product repos, at each product's `path` in `hearth.toml`. Not in the Home Repo's version control | The product the task names |
+| `memory/decisions/` | Confirmed cross-product decisions | The task involves cross-product design or trade-offs |
+| `memory/conventions/` | The team's habits and conventions | Before starting, to confirm the way the team agreed on |
+| `skills/<name>/SKILL.md` | Reusable procedures the team wrote | The task fits a skill's use case |
+| `vendor/skills/`, `.hearth/`, `.claude/skills/`, `.agents/skills/` | External skill checkouts, built-in skills, and per-agent links created by `hearth sync`. Not in version control; do not edit by hand | No need to read; agents load them from their own skills directory |
+| `.mcp.json`, `.codex/config.toml` | MCP config that `hearth sync` generates from the `[[mcp]]` entries in `hearth.toml` and personal choices; it holds only environment variable names. Not in version control; do not edit by hand | No need to read; to change an MCP server, change `hearth.toml` |
+| `subagents/<name>.md` | The team's subagent definitions, one file for both Claude Code and Codex; `claude:` and `codex:` hold each tool's own fields | When adding or changing a subagent |
+| `.claude/agents/`, `.codex/agents/` | Subagent files that `hearth sync` generates from `subagents/` and personal choices. Not in version control; do not edit by hand | No need to read; to change a subagent, change `subagents/<name>.md` |
+| `agents/` | Prompt templates for handing work to another agent; `agents/models.json` records each role's default model | When handing a task to another agent |
+| `.claude/settings.json` | Shared Claude Code settings | When changing Claude Code's model settings |
+| `workflows/` | Minimal workflows for development, code review, and cross-repo changes | Before starting a task of the matching kind |
 
-## 按任務載入
+## Load by task
 
-- 只讀這次任務需要的文件。不要預先讀完所有記憶、skills 或產品程式碼。
-- 記憶和 skill 先看摘要，再決定要不要讀全文：
+- Read only the documents this task needs. Do not read all memory, skills, or product code up front.
+- For memory and skills, read the summaries first, then decide whether to read the full text:
   - `grep -H '^summary:' memory/decisions/*.md memory/conventions/*.md`
   - `grep -H '^description:' skills/*/SKILL.md`
-- memory 只記決策和習慣。系統怎麼運作（API、資料格式、設定值、行為）以產品 repo 的 code 和測試為唯一標準；memory 和 code 對不上時信 code，並回報要更新哪一筆。
-- 檔名或目錄名以 `_` 開頭的是模板，不是內容。
-- 不要假設工具會自動發現這些目錄。需要時照上面的路徑自己去讀。
+- Memory records only decisions and habits. For how the system works (APIs, data formats, config values, behavior), the product repo's code and tests are the only standard; when memory and code disagree, trust the code and report which entry needs updating.
+- Files or directories whose names start with `_` are templates, not content.
+- Do not assume tools discover these directories automatically. When needed, read them yourself at the paths above.
 
-## 操作產品 repo
+## Working in product repos
 
-1. 產品清單以 `hearth.toml` 為準。先看各項目的 `description` 判斷任務屬於哪個產品（沒寫的就看 `name`，判斷不了就問）；checkout 的位置看該項目的 `path`。checkout 不存在時，執行 `hearth clone <name>`。它不會更新已經存在的 checkout。
-2. 動手前先讀該產品 repo 適用的 `AGENTS.md` 或 `CLAUDE.md`：repo 根目錄的，以及你要改的子目錄裡的。
-3. 執行 Git、測試、build 之前，確認操作的是正確的 repo：
+1. `hearth.toml` is the authority for the product list. Read each entry's `description` to decide which product the task belongs to (if there is none, look at `name`; if you cannot decide, ask); the checkout's location is the entry's `path`. When the checkout does not exist, run `hearth clone <name>`. It does not update a checkout that already exists.
+2. Before starting, read the product repo's applicable `AGENTS.md` or `CLAUDE.md`: the one at the repo root, and the ones in the subdirectories you will change.
+3. Before running Git, tests, or builds, confirm you are working in the right repo:
    - `git -C <path> rev-parse --show-toplevel`
    - `git -C <path> remote get-url origin`
-   - 在產品 checkout 以外的目錄執行 `git`，操作到的是 Home Repo。
-4. 只改任務指定的 repo。任務涉及多個產品，不代表可以順便修改其他 repo；發現其他 repo 也需要改，先回報。
-5. Home Repo 和產品 repo 分別提交。產品的改動提交在產品 repo，不複製進 Home Repo。
+   - Running `git` in a directory outside a product checkout works on the Home Repo.
+4. Change only the repos the task names. A task that involves several products does not mean you may also change other repos along the way; if you find another repo needs changes too, report it first.
+5. Commit the Home Repo and product repos separately. Commit product changes in the product repo; do not copy them into the Home Repo.
 
-## 搜尋產品程式碼
+## Searching product code
 
-`products/` 被 `.gitignore` 忽略。照 `.gitignore` 過濾的搜尋工具（ripgrep、Claude Code 的 Grep）在 Home Repo 根目錄不指定路徑時，搜不到產品程式碼。
+`.gitignore` ignores `products/`. Search tools that filter by `.gitignore` (ripgrep, Claude Code's Grep) do not find product code when run at the Home Repo root without a path.
 
-- 把搜尋路徑指到產品的 checkout，例如 `rg <pattern> products/<name>`；或先進到那個 checkout 再搜。
-- `git grep`、`git ls-files` 在 Home Repo 根目錄只看得到 Home Repo 自己的檔案；要查產品就用 `git -C <path>`。
-- 回報「找不到」之前，先確認搜尋範圍有包含那個產品的 checkout。
+- Point the search path at the product's checkout, for example `rg <pattern> products/<name>`; or go into that checkout first and search there.
+- `git grep` and `git ls-files` at the Home Repo root see only the Home Repo's own files; to look in a product, use `git -C <path>`.
+- Before reporting "not found", confirm the search scope includes that product's checkout.
 
-## 規則的優先順序
+## Rule precedence
 
-- 這份檔案是團隊共通的基線。
-- 產品的實作細節（語言、框架、測試、命名、發版流程）依產品 repo 自己的規範。
-- 兩邊衝突，而且無法判定哪一條適用時，先指出是哪兩條規則衝突，停下來問。不要自行猜測。
+- This file is the team-wide baseline.
+- Product implementation details (language, framework, tests, naming, release process) follow the product repo's own rules.
+- When the two conflict and you cannot tell which rule applies, point out which two rules conflict, then stop and ask. Do not guess.
 
-## 未經要求不做的事
+## Not without being asked
 
-- 不建立 commit，不 push。
-- 不執行部署。
-- 不執行破壞性操作，例如 `git reset --hard`、`git clean`、force-push、刪除分支、覆寫或丟棄未提交的修改。
+- Do not create commits or push.
+- Do not run deployments.
+- Do not run destructive operations, such as `git reset --hard`, `git clean`, force-push, deleting branches, or overwriting or discarding uncommitted changes.
 
-## 模型設定
+## Model settings
 
-細節見 `agents/README.md` 的「模型設定」。
+For details, see "Model settings" in `agents/README.md`.
 
-- 只涵蓋 Claude Code 直接連 Anthropic API。Codex、Grok 和其他工具各自設定，這份設定控制不到它們。
-- 主對話的模型不寫進共用設定，由啟動的人用 `claude --model` 或 `/model` 決定。
-- subagent 定義一律明確寫 `model`，不靠繼承主對話的模型。
-- `agents/models.json` 只是紀錄，沒有程式讀它。改模型時，它、`.claude/settings.json` 和 `subagents/` 的定義要一起改。
-- API key、token、base URL 不寫進 `.claude/settings.json`。
+- This covers only Claude Code connecting directly to the Anthropic API. Codex, Grok, and other tools have their own settings, which this config does not control.
+- The main conversation's model is not written into the shared settings; whoever starts the session picks it with `claude --model` or `/model`.
+- Subagent definitions always state `model` explicitly and do not rely on inheriting the main conversation's model.
+- `agents/models.json` is only a record; no program reads it. When you change a model, change it, `.claude/settings.json`, and the definitions in `subagents/` together.
+- Do not write API keys, tokens, or base URLs into `.claude/settings.json`.
 
-## 個人設定
+## Personal settings
 
-- `hearth.local.toml` 是每個人自己的設定。不要替使用者建立或修改它；需要改 protocol、agents、skill、MCP 或 subagent 選擇時，請使用者自己跑 `hearth config protocol <ssh|https>`、`hearth config agents <claude,codex|none>`、`hearth skill enable` / `disable <name>`、`hearth mcp enable` / `disable <name>`、`hearth subagent enable` / `disable <name>`。
-- 團隊自己寫的 skill 放 `skills/`；外部 skill 用 `hearth skill add` 釘在 commit，不複製進 repo。
-- `hearth sync` 會寫 `.agents/`、`.claude/skills/`、`.claude/agents/`、`.mcp.json`、`.codex/` 等位置，agent 的 sandbox 可能擋下；被擋時請使用者自己跑。
-- MCP server 的秘密只用環境變數名稱表達，不要把 token 或 header 的值寫進任何檔案。
+- `hearth.local.toml` is each person's own settings. Do not create or change it for the user; when the protocol, agents, or skill, MCP, or subagent choices need to change, ask the user to run `hearth config protocol <ssh|https>`, `hearth config agents <claude,codex|none>`, `hearth skill enable` / `disable <name>`, `hearth mcp enable` / `disable <name>`, `hearth subagent enable` / `disable <name>` themselves.
+- Skills the team writes go in `skills/`; external skills are pinned to a commit with `hearth skill add` and not copied into the repo.
+- `hearth sync` writes to places such as `.agents/`, `.claude/skills/`, `.claude/agents/`, `.mcp.json`, and `.codex/`, which the agent's sandbox may block; when it is blocked, ask the user to run it themselves.
+- MCP server secrets are expressed only as environment variable names; do not write token or header values into any file.
 
-## 多個 agent 同時工作
+## Several agents at once
 
-多個 agent 修改同一個產品時，各自使用獨立的 git worktree，不共用同一份 checkout。做法見 `workflows/development.md`。
+When several agents change the same product, each uses its own git worktree; they do not share one checkout. See `workflows/development.md` for how.
 
-## 安全和隱私
+## Security and privacy
 
-- `.gitignore` 只決定 Home Repo 追蹤哪些檔案。它不是讀寫權限，也不是安全隔離：`products/` 裡的檔案，agent 讀得到也改得到。
-- 不要把秘密、憑證、客戶個資、原始敏感 log 寫進這個 repo 的任何檔案，包含 `memory/`。
+- `.gitignore` only decides which files the Home Repo tracks. It is not a read/write permission and not a security boundary: agents can read and change the files in `products/`.
+- Do not write secrets, credentials, customer personal data, or raw sensitive logs into any file in this repo, including `memory/`.
 
-## 新增或修改團隊知識
+## Adding or changing team knowledge
 
-- 記憶、skills、workflows 的新增和修改都走 PR review。
-- 對話內容不自動成為團隊事實。要留下來的結論，照 `memory/README.md` 的格式開 PR。
-- 只適用單一產品的知識，留在那個產品的 repo。
+- Additions and changes to memory, skills, and workflows all go through PR review.
+- Conversation content does not automatically become team fact. For a conclusion that should be kept, open a PR in the format in `memory/README.md`.
+- Knowledge that applies to only one product stays in that product's repo.

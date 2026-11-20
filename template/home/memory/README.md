@@ -1,52 +1,52 @@
-# 團隊記憶
+# Team memory
 
-跨產品、經團隊確認的決策和習慣放這裡，只有兩類：
+Cross-product decisions and habits that the team has confirmed go here, in only two kinds:
 
-| 目錄 | 放什麼 |
+| Directory | What goes in it |
 | --- | --- |
-| `decisions/` | 經確認的跨產品決策，包含理由和取捨 |
-| `conventions/` | 團隊的習慣和慣例：大家約定怎麼做 |
+| `decisions/` | Confirmed cross-product decisions, with their reasons and trade-offs |
+| `conventions/` | The team's habits and conventions: how everyone agreed to do things |
 
-## 系統怎麼運作，以 code 為準
+## How the system works: the code is the authority
 
-- memory 不記系統的規格：API、資料格式、設定值、模組行為、目前的架構。這些以產品 repo 的 code 和測試為唯一標準，要知道就去讀 code。
-- 決策可以寫「為什麼這樣選」，但不複述 code 已經寫明的細節，否則 code 一改就過時。
-- memory 和 code 對不上時，以 code 為準，並開 PR 更新那一筆，或把 `status` 改掉。
+- Memory does not record the system's specification: APIs, data formats, config values, module behavior, the current architecture. For these, the product repo's code and tests are the only standard; to know them, read the code.
+- A decision may say "why we chose this", but does not restate details the code already spells out; otherwise it goes stale as soon as the code changes.
+- When memory and code disagree, the code wins; open a PR to update that entry, or change its `status`.
 
-## 怎麼讀
+## How to read it
 
-不要一次讀完。先看摘要，再讀跟任務有關的那幾篇：
+Do not read it all at once. Look at the summaries first, then read the few entries related to the task:
 
 ```sh
 grep -H '^summary:' memory/decisions/*.md memory/conventions/*.md
 ```
 
-`status` 不是 `active` 的條目只當背景，不當成現行規則。檔名以 `_` 開頭的是模板。
+Treat entries whose `status` is not `active` as background only, not as current rules. Files whose names start with `_` are templates.
 
-## 每一筆的格式
+## Entry format
 
-- 一個檔案記一件事，檔名 `YYYY-MM-DD-<slug>.md`，日期是確認日期。
-- 複製同目錄的 `_template.md` 開始寫。
-- frontmatter 五個欄位都必填：
+- One file per item, named `YYYY-MM-DD-<slug>.md`, where the date is the date it was confirmed.
+- Start by copying `_template.md` in the same directory.
+- All five frontmatter fields are required:
 
-| 欄位 | 內容 |
+| Field | Contents |
 | --- | --- |
-| `summary` | 一行摘要，讓讀的人判斷要不要讀全文 |
-| `scope` | 適用範圍：哪些產品、哪些情境 |
-| `source` | 來源：PR、issue、事故紀錄或會議紀錄的連結，以及確認的人 |
-| `confirmed` | 確認日期，格式 `YYYY-MM-DD` |
-| `status` | `active`（現行）、`superseded`（被取代，內文寫明被哪一筆取代）、`retired`（不再適用） |
+| `summary` | A one-line summary, so readers can decide whether to read the full text |
+| `scope` | Where it applies: which products, which situations |
+| `source` | Source: a link to the PR, issue, incident record, or meeting notes, and who confirmed it |
+| `confirmed` | Date confirmed, in `YYYY-MM-DD` format |
+| `status` | `active` (current), `superseded` (replaced; the body says which entry replaced it), `retired` (no longer applies) |
 
-## 怎麼納入
+## How entries get in
 
-- 只透過 PR review 納入。reviewer 確認內容屬實、來源查得到、適用範圍寫清楚。
-- 聊天紀錄和 agent 的對話摘要不自動當成團隊事實。agent 可以起草，但要有人在 PR 確認。
-- 內容不再成立時，開 PR 更新 `status`。
+- Only through PR review. The reviewer confirms the content is true, the source can be checked, and the scope is clearly stated.
+- Chat logs and agents' conversation summaries do not automatically count as team fact. An agent may draft an entry, but someone has to confirm it in the PR.
+- When the content no longer holds, open a PR to update `status`.
 
-## 不放這裡的
+## What does not go here
 
-- 只適用單一產品的知識：留在那個產品的 repo。
-- 系統規格和行為描述：以 code 和測試為準，見上面。
-- 事故經過本身：只記從中歸納出的決策或慣例。
-- 秘密、憑證、token、客戶個資、原始敏感 log。要引用事故時，寫去識別化的描述，加上內部系統的連結。
-- 還沒確認的內容。
+- Knowledge that applies to only one product: keep it in that product's repo.
+- System specifications and descriptions of behavior: the code and tests are the authority; see above.
+- The incident narrative itself: record only the decisions or conventions drawn from it.
+- Secrets, credentials, tokens, customer personal data, raw sensitive logs. When citing an incident, write a de-identified description and add a link to the internal system.
+- Content that has not been confirmed yet.

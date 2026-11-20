@@ -2,12 +2,14 @@ package scaffold_test
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/gittest"
@@ -297,6 +299,50 @@ func TestGeneratedRepoDropsPythonAndSkillInstaller(t *testing.T) {
 		if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(path))); err == nil {
 			t.Errorf("%s exists", path)
 		}
+	}
+}
+
+// cjkPunctuation is CJK punctuation (U+3000 to U+303F) and the fullwidth
+// forms (U+FF00 to U+FFEF). Together with unicode.Han it is what the
+// template must not contain: every generated file is English.
+var cjkPunctuation = &unicode.RangeTable{R16: []unicode.Range16{
+	{Lo: 0x3000, Hi: 0x303F, Stride: 1},
+	{Lo: 0xFF00, Hi: 0xFFEF, Stride: 1},
+}}
+
+// cjkLines returns the lines of text that hold a Han character, CJK
+// punctuation or a fullwidth form, each with its line number.
+func cjkLines(text string) []string {
+	isCJK := func(r rune) bool {
+		return unicode.In(r, unicode.Han, cjkPunctuation)
+	}
+	var found []string
+	for i, line := range strings.Split(text, "\n") {
+		if strings.IndexFunc(line, isCJK) >= 0 {
+			found = append(found, fmt.Sprintf("line %d: %s", i+1, line))
+		}
+	}
+	return found
+}
+
+func TestGeneratedRepoIsEnglish(t *testing.T) {
+	dir := initHome(t)
+	for path, text := range generatedFiles(t, dir) {
+		for _, line := range cjkLines(text) {
+			t.Errorf("%s %s", path, line)
+		}
+	}
+}
+
+func TestCJKCheckCatchesHanAndFullwidth(t *testing.T) {
+	samples := []string{"\u898f\u5247", "rules\uff1a", "\u3001", "a\u3000b", "\U00020000"}
+	for _, sample := range samples {
+		if len(cjkLines("plain\n"+sample)) != 1 {
+			t.Errorf("missed %q", sample)
+		}
+	}
+	if found := cjkLines("plain ASCII, arrows \u2192 and dashes \u2014 are fine"); len(found) != 0 {
+		t.Errorf("flagged %q", found)
 	}
 }
 
