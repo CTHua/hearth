@@ -1,54 +1,54 @@
 # Skills
 
-可重用、按需載入的操作知識：一件會重複做的事，寫成工程師或 agent 照著做都能完成的步驟。
+Reusable operational knowledge that is loaded on demand: a task that recurs, written as steps that an engineer or an agent can follow to finish it.
 
-## 三種來源
+## Three sources
 
-| 來源 | 放哪裡 | 怎麼加入 |
+| Source | Where it lives | How to add it |
 | --- | --- | --- |
-| 團隊 | 這個目錄：`skills/<name>/SKILL.md` | 照下面「怎麼新增團隊 skill」開 PR |
-| 外部 | 別的 repo，釘在一個完整 commit SHA。`hearth skill sync` 把它 clone 到 `vendor/skills/<name>` | `hearth skill add <url> [--subdir <dir>]... [--name <name>] [--commit <sha>]`，再開 PR |
-| 內建 | `hearth` 自己帶的 `hearth` skill，教 agent 用 `hearth` 指令改清單 | 不用加；選了任一個 agent 就會裝 |
+| Team | This directory: `skills/<name>/SKILL.md` | Open a PR as in "How to add a team skill" below |
+| External | Another repo, pinned to a full commit SHA. `hearth skill sync` clones it into `vendor/skills/<name>` | `hearth skill add <url> [--subdir <dir>]... [--name <name>] [--commit <sha>]`, then open a PR |
+| Built-in | The `hearth` skill that ships with `hearth`, teaching agents to change the lists with `hearth` commands | Nothing to add; it is installed once any agent is chosen |
 
-- 名稱跨來源不分大小寫不能重複；`hearth` 保留給內建 skill。
-- 一個外部 repo 有多個 skill 時，`hearth skill add <url>` 不給 `--subdir` 會列出 repo 裡的 skill，建成一個群組：`hearth.toml` 只有一筆、整組共用一個 commit，`vendor/skills/<群組名>` 只有一份 checkout。群組裡每個 skill 的名字是它目錄的最後一段，`enable` 時寫這個名字，或寫群組名開整組。
-- 目錄名以 `_` 開頭的是模板，不算 skill。目錄名不合 name 規則（英數字、`.`、`_`、`-`，以英數字開頭）的會報 `skill-invalid`，不能選。
+- Names must not repeat across sources, ignoring case; `hearth` is reserved for the built-in skill.
+- When an external repo has several skills, `hearth skill add <url>` without `--subdir` lists the skills in the repo and creates one group: a single entry in `hearth.toml`, one commit shared by the whole group, and a single checkout in `vendor/skills/<group>`. Each skill in the group is named after the last segment of its directory; use that name with `enable`, or use the group's name to turn on the whole group.
+- Directories whose names start with `_` are templates and do not count as skills. Directories whose names break the name rule (letters, digits, `.`, `_`, `-`, starting with a letter or digit) report `skill-invalid` and cannot be picked.
 
-## 每個人自己選
+## Each person picks their own
 
-每個人選要用哪些 agent 和 skill，只寫進自己的 `hearth.local.toml`，不影響別人：
+Each person picks which agents and skills to use; the picks go only into their own `hearth.local.toml` and do not affect anyone else:
 
 ```sh
-hearth config agents claude,codex   # 或只選一個；none 清空
-hearth skill enable <name>...       # 團隊或外部 skill 都可以選；群組名代表整組
-hearth skill sync                   # 安裝並建 link
-hearth skill list                   # 每個 skill 的來源、有沒有選、狀態
-hearth skill disable <name>...      # 不用了；下次 sync 會拿掉 link
+hearth config agents claude,codex   # or pick just one; none clears it
+hearth skill enable <name>...       # team or external skills; a group's name means the whole group
+hearth skill sync                   # installs and creates links
+hearth skill list                   # each skill's source, whether it is picked, and its status
+hearth skill disable <name>...      # no longer needed; the next sync removes the link
 ```
 
-- `sync` 把選到的 skill symlink 到 `.claude/skills/<name>`（`claude`）、`.agents/skills/<name>`（`codex`）。這些目錄和 `vendor/`、`.hearth/` 都被 `.gitignore` 忽略。
-- `sync` 只刪自己建的 link。你自己放在那些目錄的檔案或 link 不會被動到，會報 `link-conflict`。
-- 外部 skill 的 pin 改了之後，`sync` 只在舊 checkout 沒有本機改動、沒有 ignored 檔、也沒有本機 commit 時才換；否則報 `pin-mismatch`，舊 checkout 不動。
-- 同事把你選著的 skill 移除後，指令照常能跑，會警告它是 `unknown`；用 `hearth skill disable <name>` 把它從個人檔清掉。
-- Claude Code 從 `products/<name>/` 啟動時讀不到根目錄的 `.claude/skills/`，要從 Home Repo 根目錄啟動。
+- `sync` symlinks the picked skills into `.claude/skills/<name>` (`claude`) and `.agents/skills/<name>` (`codex`). These directories, `vendor/`, and `.hearth/` are all ignored by `.gitignore`.
+- `sync` deletes only links it created. Files or links you put in those directories yourself are left alone and reported as `link-conflict`.
+- After an external skill's pin changes, `sync` switches only when the old checkout has no local changes, no ignored files, and no local commits; otherwise it reports `pin-mismatch` and leaves the old checkout as it is.
+- When a teammate removes a skill you have picked, commands still run and warn that it is `unknown`; clear it from your personal file with `hearth skill disable <name>`.
+- Claude Code started from `products/<name>/` cannot read the root `.claude/skills/`; start it from the Home Repo root.
 
-## 每個 skill 要寫明
+## What each skill must state
 
-| 段落 | 內容 |
+| Section | Contents |
 | --- | --- |
-| 適用情境 | 什麼任務該用，什麼時候不該用 |
-| 前置條件 | 需要的工具、權限，以及要在哪個 repo、什麼狀態下開始 |
-| 步驟 | 編號步驟，一步一個動作，指令寫完整 |
-| 驗證方式 | 怎麼確認做對了：要跑的指令和預期結果 |
+| When to use | Which tasks should use it, and when it should not be used |
+| Prerequisites | The tools and permissions needed, and which repo and state to start in |
+| Steps | Numbered steps, one action per step, with complete commands |
+| Verification | How to confirm it was done right: commands to run and expected results |
 
-## 怎麼新增團隊 skill
+## How to add a team skill
 
-1. 複製 `skills/_template/` 成 `skills/<name>/`，`<name>` 用 kebab-case。
-2. 填 frontmatter：`name` 和目錄同名，`description` 用一行寫適用情境。
-3. 照寫好的步驟實際做一次，確認驗證方式會過。
-4. 開 PR。合併後，要用的人自己 `hearth skill enable <name>`、`hearth skill sync`。
+1. Copy `skills/_template/` to `skills/<name>/`, using kebab-case for `<name>`.
+2. Fill in the frontmatter: `name` matches the directory name, and `description` states the use case in one line.
+3. Follow the written steps once for real and confirm the verification passes.
+4. Open a PR. After it merges, whoever wants it runs `hearth skill enable <name>` and `hearth skill sync` themselves.
 
-## 不放這裡的
+## What does not go here
 
-- 只適用單一產品的操作：放那個產品的 repo。
-- 秘密、憑證、token。步驟需要憑證時，寫去哪裡取得，不寫值。
+- Procedures that apply to only one product: put them in that product's repo.
+- Secrets, credentials, tokens. When a step needs a credential, say where to get it, not its value.

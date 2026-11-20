@@ -1,51 +1,51 @@
-# hearth 開發規則
+# hearth development rules
 
-給在這個 repo 工作的工程師和 AI coding agents。`CLAUDE.md` 只載入這份檔案。
+For engineers and AI coding agents working in this repo. `CLAUDE.md` loads only this file.
 
-## 結構
+## Layout
 
-| 路徑 | 內容 |
+| Path | Contents |
 | --- | --- |
-| `cmd/hearth/main.go` | 入口：判斷 stdin、stdout 是不是 TTY，交給 `internal/cli` |
-| `internal/cli` | 子指令和參數解析（標準庫 `flag`）：解析旗標 → 呼叫 `internal/core` → 印結果；沒參數時開 TUI 或印 help |
-| `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、subagent、sync），吃已載入的 home、回傳結構化結果；`TeamChanges` 比較 `hearth.toml` 跟 HEAD；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
-| `internal/tui` | Bubble Tea v2 的 TUI：Mine（個人檔，含 skill、MCP、subagent 的開關）和 team 組的 Repos、Skills、MCP（團隊檔）四個分頁、置中表單、`?` 快捷鍵表、滑鼠（點擊照 render 時記下的區域判斷）和 `y` 剪貼簿，只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
-| `internal/upgrade` | `hearth upgrade`：重寫標記區段、照遷移鏈升級設定檔的 `schema_version`；遷移是對檔案文字的替換，只改 `schema_version` 和 `min_hearth_version` 的值，其餘 byte 不動；鏈和目標版本是參數 |
-| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`（單一 skill 用 `subdir`、群組用 `subdirs`）、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`、`subagents`）的讀寫、驗證、版本 gate、根目錄搜尋；`Load` 只收目前的 `schema_version`，`ParseTeam`（讀 HEAD）也收 1 |
-| `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、環境變數和 PATH 檢查 |
-| `internal/subagent` | 讀 `subagents/<name>.md`（YAML frontmatter 用 `yaml.Node` 保留順序）、驗證、轉成 `.claude/agents/<name>.md` 和 `.codex/agents/<name>.toml`（格式只在這裡，黃金檔在 `testdata/`；Codex 端還沒實測生效）、狀態、sync；擁有 state 裡 `.claude/agents/`、`.codex/agents/` 開頭的記錄 |
-| `internal/genfile` | `.hearth/state.json` 的讀寫、hash、手改判斷用的檔案和 symlink 檢查，`internal/mcp`、`internal/subagent` 共用；各自只改自己的記錄 |
-| `internal/tomlstr` | 手寫 TOML 值和 key（字串、陣列、inline table、dotted key），給 encoder 無法保留順序的地方用 |
-| `internal/giturl` | 三種 URL 寫法的解析和 ssh／https 轉換 |
-| `internal/gitx` | 拿掉繼承的 git local env vars 後執行 git |
-| `internal/checkout` | 只讀檢查一個 checkout 的狀態；路徑上的 symlink 檢查和 checkout root 檢查也給 `internal/skill` 用 |
-| `internal/clone` | clone 一個產品，或確認既有的 checkout |
-| `internal/skill` | skill 的三種來源、群組成員的展開（一筆一個 checkout、成員各自檢查 `SKILL.md`）、狀態、detached-commit 的安裝和換 pin、各 agent 的 link、`skill add` 列遠端 skill（系統暫存目錄的 `git clone --no-checkout` 加 `git ls-tree`，只讀 `.claude-plugin/plugin.json` 一個 blob）；內建 skill 的 `SKILL.md` 在 `internal/skill/builtin/`（go:embed） |
-| `internal/dirswap` | 換掉非空目錄，中途失敗時把原本的搬回來 |
-| `internal/detect` | 用 `git ls-remote` 偵測 protocol |
-| `internal/scaffold` | `hearth init`、標記區段檢查，和標記區段跟模板的逐 byte 比對（`upgrade`、`doctor` 共用） |
-| `internal/apperr` | 錯誤類別、錯誤格式、exit code |
-| `internal/brand` | 所有含套件名稱的字串 |
-| `template/home/` | `hearth init` 寫出的 Home Repo 模板（go:embed） |
-| `install.sh` | `curl \| sh` 的安裝腳本（POSIX sh）：選平台、從 Release 下載壓縮檔和 `SHA256SUMS`、驗 checksum、在安裝目錄試跑 `version` 後才換檔 |
-| `scripts/` | `build-release.sh` 建 4 個平台的壓縮檔和 `SHA256SUMS`；`test-install.sh` 用 `file://` 離線測 `install.sh`（CI 和 release workflow 都跑） |
-| `.github/workflows/release.yml` | 跑檢查和建置；tag 觸發時做 build provenance attestation、建 draft Release；PR 和手動觸發只建置、存成 workflow artifact |
+| `cmd/hearth/main.go` | Entry point: checks whether stdin and stdout are TTYs and hands off to `internal/cli` |
+| `internal/cli` | Subcommands and argument parsing (standard library `flag`): parse flags → call `internal/core` → print the result; with no arguments, opens the TUI or prints help |
+| `internal/core` | One method per user action (repo, protocol, agent, skill, MCP, subagent, sync); takes the loaded home and returns structured results; `TeamChanges` compares `hearth.toml` with HEAD; `core.Actions` is the interface the TUI uses, and tests swap in a fake implementation |
+| `internal/tui` | Bubble Tea v2 TUI: four tabs, Mine (personal file, including the skill, MCP, and subagent switches) and the team group's Repos, Skills, MCP (team file), centered forms, a `?` key table, mouse (clicks are matched against regions recorded at render time) and `y` clipboard; acts only through `core.Actions`; background actions run one at a time, and each can be cancelled with `ctrl+c` |
+| `internal/upgrade` | `hearth upgrade`: rewrites the marked sections and upgrades each config file's `schema_version` along the migration chain; migrations are text replacements on the file that change only the values of `schema_version` and `min_hearth_version`, leaving every other byte as is; the chain and the target version are parameters |
+| `internal/config` | Reading, writing, validation, version gate, and root search for `hearth.toml` (`[[repos]]`, `[[skills]]` (`subdir` for a single skill, `subdirs` for a group), `[[mcp]]`) and `hearth.local.toml` (`protocol`, `agents`, `skills`, `mcp`, `subagents`); `Load` accepts only the current `schema_version`, and `ParseTeam` (reads HEAD) also accepts 1 |
+| `internal/mcp` | Generates `.mcp.json` and `.codex/config.toml` (the formats live only here, golden files in `testdata/`), and checks environment variables and PATH |
+| `internal/subagent` | Reads `subagents/<name>.md` (YAML frontmatter through `yaml.Node` to keep order), validates it, converts it to `.claude/agents/<name>.md` and `.codex/agents/<name>.toml` (the formats live only here, golden files in `testdata/`; the Codex side is not yet confirmed to take effect), status, sync; owns the state records that start with `.claude/agents/` or `.codex/agents/` |
+| `internal/genfile` | Reading and writing `.hearth/state.json`, hashing, and the file and symlink checks used to detect hand edits, shared by `internal/mcp` and `internal/subagent`; each changes only its own records |
+| `internal/tomlstr` | Hand-written TOML values and keys (strings, arrays, inline tables, dotted keys), for places where the encoder cannot keep order |
+| `internal/giturl` | Parsing of the three URL forms and ssh/https conversion |
+| `internal/gitx` | Runs git with the inherited git local env vars removed |
+| `internal/checkout` | Read-only status check of one checkout; the symlink check on the path and the checkout root check are also used by `internal/skill` |
+| `internal/clone` | Clones one product, or confirms an existing checkout |
+| `internal/skill` | The three skill sources, expansion of group members (one checkout per entry, each member checks its own `SKILL.md`), status, detached-commit install and pin changes, per-agent links, and `skill add` listing remote skills (`git clone --no-checkout` into the system temporary directory plus `git ls-tree`, reading only one blob, `.claude-plugin/plugin.json`); the built-in skills' `SKILL.md` files are in `internal/skill/builtin/` (go:embed) |
+| `internal/dirswap` | Replaces a non-empty directory, moving the original back if it fails midway |
+| `internal/detect` | Detects the protocol with `git ls-remote` |
+| `internal/scaffold` | `hearth init`, marked section checks, and the byte-for-byte comparison of marked sections against the template (shared by `upgrade` and `doctor`) |
+| `internal/apperr` | Error categories, error format, exit codes |
+| `internal/brand` | Every string that contains the package name |
+| `template/home/` | The Home Repo template that `hearth init` writes (go:embed) |
+| `install.sh` | The `curl \| sh` install script (POSIX sh): picks the platform, downloads the archive and `SHA256SUMS` from the Release, verifies the checksum, and test-runs `version` in the install directory before replacing the file |
+| `scripts/` | `build-release.sh` builds the archives for 4 platforms and `SHA256SUMS`; `test-install.sh` tests `install.sh` offline with `file://` (run by both CI and the release workflow) |
+| `.github/workflows/release.yml` | Runs the checks and the build; on a tag, makes the build provenance attestation and creates a draft Release; PRs and manual runs only build and save the result as a workflow artifact |
 
-## 規則
+## Rules
 
-- 驗證：`gofmt -l .` 沒有輸出、`go vet ./...`、`go test ./...` 都過才算完成。
-- 含套件名稱的字串常數只放 `internal/brand`。下面這行要沒有輸出：
+- Verification: work is done only when `gofmt -l .` prints nothing and `go vet ./...` and `go test ./...` both pass.
+- String constants that contain the package name live only in `internal/brand`. This line must print nothing:
 
   ```sh
   grep -rn '"[^"]*hearth' --include='*.go' . | grep -v '^./internal/brand/' | grep -v '"github.com/CTHua/hearth/'
   ```
 
-- 測試只碰公開介面，不連網路。要用 git 的測試在 `TestMain` 呼叫 `gittest.Main`，遠端用 `gittest.BareRemote` 和 `gittest.Redirect`。
-- 相依只有 `github.com/BurntSushi/toml`、讀 subagent frontmatter 的 `go.yaml.in/yaml/v3`、TUI 用的 Charm 套件（`charm.land/bubbletea/v2`、`charm.land/bubbles/v2`、`charm.land/lipgloss/v2`）和判斷 TTY 的 `github.com/charmbracelet/x/term`。新增或升級相依先討論。
-- 設定檔格式、URL 規則和標記字串是對外的契約，改了就要把對應檔案的 `schema_version` 加一。
-- 模板（`template/home/`）不能提到 Python 腳本，也不能有機器路徑、真實的 GitHub URL 或真實 email；`internal/scaffold` 的測試會檢查。
-- agent 的 MCP 設定（`.mcp.json`、`.codex/config.toml`）和 `.hearth/state.json` 只由 `hearth sync` / `hearth mcp sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫。秘密只寫環境變數名稱。
-- subagent 的產出檔（`.claude/agents/<name>.md`、`.codex/agents/<name>.toml`）只由 `hearth sync` / `hearth subagent sync` 從 `subagents/` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們。規則同 MCP：被手改過的檔不覆寫也不刪，除非 `--force`；路徑上有 symlink 時一律不寫；沒記錄、也不在這次目標裡的檔不碰。
-- skill 目錄（`vendor/skills/`、`.hearth/`、`.claude/skills/`、`.agents/skills/`）只由 `hearth sync` / `hearth skill sync` 寫到使用者的 Home Repo；`hearth init` 和模板不產生它們，`sync` 只刪自己建的 link。
-- 發布：產物檔名 `hearth_<os>_<arch>.tar.gz`、`SHA256SUMS` 的格式（`<64 個 hex><兩個空白><檔名>`，照檔名排序）、`install.sh` 的三個環境變數（`HEARTH_VERSION`、`HEARTH_INSTALL_DIR`、`HEARTH_BASE_URL`）是對外的契約，第一個 Release 之後改了就會弄壞別人的安裝。發版步驟：在 Actions 手動觸發 `release` 做 dry-run → 打 `v<MAJOR.MINOR.PATCH>` tag 並 push → 檢查 draft Release 的產物 → 按 Publish → 確認發布出去的 Release 有 5 個產物，再跑一次 `install.sh`。`main` 上的 `install.sh` 一改就影響所有新安裝的人。
-- 未經要求不 commit、不 push、不打 tag、不發 Release。
+- Tests touch only public interfaces and never the network. Tests that use git call `gittest.Main` in `TestMain`, and use `gittest.BareRemote` and `gittest.Redirect` for remotes.
+- The only dependencies are `github.com/BurntSushi/toml`, `go.yaml.in/yaml/v3` for reading subagent frontmatter, the Charm packages for the TUI (`charm.land/bubbletea/v2`, `charm.land/bubbles/v2`, `charm.land/lipgloss/v2`), and `github.com/charmbracelet/x/term` for TTY detection. Discuss before adding or upgrading a dependency.
+- Config file formats, URL rules, and marker strings are an external contract; when you change one, bump the `schema_version` of the affected file by one.
+- The template (`template/home/`) must not mention Python scripts and must not contain machine paths, real GitHub URLs, or real email addresses; the `internal/scaffold` tests check this.
+- The agents' MCP config (`.mcp.json`, `.codex/config.toml`) and `.hearth/state.json` are written to the user's Home Repo only by `hearth sync` / `hearth mcp sync`; `hearth init` and the template do not create them. Files edited by hand are neither overwritten nor deleted unless `--force` is given; nothing is written when a symlink sits in the path. Secrets are written only as environment variable names.
+- Subagent output files (`.claude/agents/<name>.md`, `.codex/agents/<name>.toml`) are written from `subagents/` to the user's Home Repo only by `hearth sync` / `hearth subagent sync`; `hearth init` and the template do not create them. The rules are the same as for MCP: files edited by hand are neither overwritten nor deleted unless `--force` is given; nothing is written when a symlink sits in the path; files with no record that are not targets of this run are left alone.
+- Skill directories (`vendor/skills/`, `.hearth/`, `.claude/skills/`, `.agents/skills/`) are written to the user's Home Repo only by `hearth sync` / `hearth skill sync`; `hearth init` and the template do not create them, and `sync` deletes only links it created.
+- Releases: the archive names `hearth_<os>_<arch>.tar.gz`, the `SHA256SUMS` format (`<64 hex chars><two spaces><file name>`, sorted by file name), and the three `install.sh` environment variables (`HEARTH_VERSION`, `HEARTH_INSTALL_DIR`, `HEARTH_BASE_URL`) are an external contract; changing them after the first Release breaks other people's installs. Release steps: trigger `release` manually in Actions as a dry run → create and push a `v<MAJOR.MINOR.PATCH>` tag → check the draft Release's artifacts → click Publish → confirm the published Release has 5 artifacts, then run `install.sh` once more. A change to `install.sh` on `main` affects everyone who installs from then on.
+- Do not commit, push, tag, or publish a Release unless asked.

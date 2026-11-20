@@ -1,38 +1,38 @@
 # Home Repo
 
-工程團隊和 AI coding agents 共用的工作入口。這裡集中維護團隊記憶、skills、workflows 和產品 repo 清單。
+The shared starting point for work, used by the engineering team and AI coding agents. Team memory, skills, workflows, and the list of product repos are maintained here.
 
-產品程式碼不在這個 repo。每個產品是獨立的 Git repo，由 `hearth clone` clone 到 `products/`，各自版控、各自提交。
+Product code is not in this repo. Each product is its own Git repo, cloned into `products/` by `hearth clone`, with its own version control and its own commits.
 
-共同規則在 [`AGENTS.md`](AGENTS.md)，工程師和 agent 都適用。
+The shared rules are in [`AGENTS.md`](AGENTS.md) and apply to both engineers and agents.
 
-## 環境需求
+## Requirements
 
-- Git。
-- `hearth`：`go install github.com/CTHua/hearth/cmd/hearth@latest`，其他安裝方式見 https://github.com/CTHua/hearth 。支援 macOS 和 Linux。
-- 對 `hearth.toml` 列的 repo 有讀取權限。用 SSH 時要先設定好 SSH key。
+- Git.
+- `hearth`: `go install github.com/CTHua/hearth/cmd/hearth@latest`; for other ways to install, see https://github.com/CTHua/hearth . Supports macOS and Linux.
+- Read access to the repos listed in `hearth.toml`. For SSH, set up your SSH key first.
 
-## 快速開始
+## Quick start
 
 ```sh
-git clone <你的 Home Repo URL> home-repo
+git clone <your Home Repo URL> home-repo
 cd home-repo
-hearth config protocol ssh   # 或 https；不設的話，第一次 clone 時會實際連線偵測
-hearth clone                 # clone 全部產品
-hearth repo list             # 每個產品的狀態
-hearth doctor                # 檢查 git、設定檔和每個 checkout
+hearth config protocol ssh   # or https; if unset, the first clone connects to detect it
+hearth clone                 # clones every product
+hearth repo list             # each product's status
+hearth doctor                # checks git, the config files, and every checkout
 ```
 
-`hearth` 從目前目錄往上找 `hearth.toml` 決定 Home Repo 根目錄，所以在 `products/<name>/` 裡也能跑；也可以用 `-C <dir>` 指定。
+`hearth` finds the Home Repo root by looking upward from the current directory for `hearth.toml`, so it also runs inside `products/<name>/`; you can also set it with `-C <dir>`.
 
-## 兩個設定檔
+## The two config files
 
-| 檔案 | 誰改 | 版控 |
+| File | Who changes it | Version control |
 | --- | --- | --- |
-| `hearth.toml` | 團隊，透過 `hearth repo add` / `remove`、`hearth skill add` / `remove` / `update`、`hearth mcp add` / `remove` 再開 PR | 進版控 |
-| `hearth.local.toml` | 每個人自己，透過 `hearth config protocol`、`hearth config agents`、`hearth skill enable` / `disable`、`hearth mcp enable` / `disable`、`hearth subagent enable` / `disable` | 被 `.gitignore` 忽略 |
+| `hearth.toml` | The team, through `hearth repo add` / `remove`, `hearth skill add` / `remove` / `update`, `hearth mcp add` / `remove`, then a PR | In version control |
+| `hearth.local.toml` | Each person, through `hearth config protocol`, `hearth config agents`, `hearth skill enable` / `disable`, `hearth mcp enable` / `disable`, `hearth subagent enable` / `disable` | Ignored by `.gitignore` |
 
-`hearth.toml` 的格式：
+The format of `hearth.toml`:
 
 ```toml
 # Managed by hearth. Edit with `hearth repo add` / `hearth repo remove`; comments are not kept.
@@ -44,47 +44,47 @@ name = "web-app"
 url = "git@git.example.invalid:acme/web-app.git"
 path = "products/web-app"
 branch = "main"
-description = "給客戶用的網頁前端"
+description = "Customer-facing web app"
 ```
 
-| 欄位 | 規則 |
+| Field | Rules |
 | --- | --- |
-| `name` | 產品的識別名稱，也是 `hearth clone <name>` 用的名稱。只能用英數字、`.`、`_`、`-`，以英數字開頭。不分大小寫不得重複 |
-| `url` | clone URL，只收 `git@<host>:<path>`、`ssh://git@<host>/<path>`、`https://<host>/<path>` 三種寫法 |
-| `path` | 相對 Home Repo 的路徑，必須在 `products/` 底下，每一段的規則同 `name`。不分大小寫不得重複，也不得是另一個 `path` 的上層或下層 |
-| `branch` | clone 時 checkout 的分支。必須是分支，不能是 tag |
-| `description` | 選填。這個產品做什麼，agent 靠它判斷任務屬於哪個產品。一行字，可以用中文，不能有換行、tab 等控制字元，前後不能有空白，最長 200 個字元。沒寫或空字串代表沒有 |
+| `name` | The product's identifying name, also the name used by `hearth clone <name>`. Only letters, digits, `.`, `_`, `-`, starting with a letter or digit. Must not repeat, ignoring case |
+| `url` | Clone URL; only three forms are accepted: `git@<host>:<path>`, `ssh://git@<host>/<path>`, `https://<host>/<path>` |
+| `path` | Path relative to the Home Repo; must be under `products/`, and each segment follows the same rule as `name`. Must not repeat, ignoring case, and must not be a parent or child of another `path` |
+| `branch` | The branch checked out on clone. Must be a branch, not a tag |
+| `description` | Optional. What this product does; agents use it to decide which product a task belongs to. One line of text, Chinese is fine; no newlines, tabs, or other control characters, no leading or trailing whitespace, at most 200 characters. Missing or an empty string means none |
 
-- `name`、`url`、`path`、`branch` 四個欄位必填，`description` 選填，不能有其他欄位。`hearth doctor` 會提醒沒有 `description` 的產品。
-- `hearth` 改這個檔案時會整個重寫，只留第一行的註解；自己加的註解會消失，說明請寫在 PR 或這份 README。
-- `min_hearth_version` 比你的 `hearth` 新，或 `schema_version` 比你的 `hearth` 支援的新時，指令會報 `version`、exit 2，什麼都不做。升級 `hearth` 即可。
+- The four fields `name`, `url`, `path`, `branch` are required, `description` is optional, and no other fields are allowed. `hearth doctor` reminds you about products without a `description`.
+- When `hearth` changes this file it rewrites the whole file, keeping only the comment on the first line; comments you add will disappear, so put explanations in the PR or in this README.
+- When `min_hearth_version` is newer than your `hearth`, or `schema_version` is newer than your `hearth` supports, commands report `version`, exit 2, and do nothing. Upgrade `hearth` to fix it.
 
-## 加入和移除產品
+## Adding and removing products
 
 ```sh
-hearth repo add git@git.example.invalid:acme/web-app.git            # name=web-app，path=products/web-app
-hearth repo add https://git.example.invalid/acme/api.git --name api-service --branch develop --description "訂單 API"
-hearth repo describe web-app "給客戶用的網頁前端"                   # 補上或修改 description
-hearth repo describe web-app ""                                     # 清掉 description
-hearth repo remove web-app                                          # 只改 hearth.toml，checkout 留著
+hearth repo add git@git.example.invalid:acme/web-app.git            # name=web-app, path=products/web-app
+hearth repo add https://git.example.invalid/acme/api.git --name api-service --branch develop --description "Orders API"
+hearth repo describe web-app "Customer-facing web app"              # adds or changes the description
+hearth repo describe web-app ""                                     # clears the description
+hearth repo remove web-app                                          # changes only hearth.toml; the checkout stays
 ```
 
-- 沒給 `--name` 時取 URL 最後一段、去掉 `.git`；沒給 `--path` 時是 `products/<name>`；沒給 `--branch` 時問遠端的預設分支。`--description` 和 `repo describe` 的文字會先去掉前後空白。
-- 不合規則或跟既有項目衝突時 exit 2，`hearth.toml` 不變，訊息會提示用哪個旗標指定。
-- 改完記得 commit `hearth.toml` 並開 PR。
+- Without `--name`, the name is the last segment of the URL with `.git` removed; without `--path`, the path is `products/<name>`; without `--branch`, the remote is asked for its default branch. The text of `--description` and `repo describe` has leading and trailing whitespace removed first.
+- When something breaks the rules or conflicts with an existing entry, it exits 2, `hearth.toml` stays unchanged, and the message says which flag to set it with.
+- When you are done, remember to commit `hearth.toml` and open a PR.
 
 ## Skills
 
 ```sh
-hearth skill add https://git.example.invalid/acme/skills.git --subdir pdf   # 團隊檔，釘在遠端 HEAD 當下的 commit
-hearth skill add https://git.example.invalid/acme/toolkit.git              # 沒給 --subdir：列出 repo 裡的 skill，多個就建一個群組
-hearth config agents claude,codex                                          # 個人檔；none 清空
-hearth skill enable pdf                                                    # 個人檔；給群組名就開整組
-hearth skill sync                                                          # 安裝並建 link
-hearth skill list                                                          # 只讀，不連網
+hearth skill add https://git.example.invalid/acme/skills.git --subdir pdf   # team file; pinned to the remote HEAD's commit at that moment
+hearth skill add https://git.example.invalid/acme/toolkit.git              # no --subdir: lists the skills in the repo; several become one group
+hearth config agents claude,codex                                          # personal file; none clears it
+hearth skill enable pdf                                                    # personal file; a group's name turns on the whole group
+hearth skill sync                                                          # installs and creates links
+hearth skill list                                                          # read-only, no network
 ```
 
-`hearth.toml` 的外部 skill：
+External skills in `hearth.toml`:
 
 ```toml
 [[skills]]
@@ -94,14 +94,14 @@ commit = "0123456789abcdef0123456789abcdef01234567"
 subdir = "pdf"
 ```
 
-| 欄位 | 規則 |
+| Field | Rules |
 | --- | --- |
-| `name` | 規則同 `[[repos]]` 的 `name`，不能是 `hearth`（不分大小寫），也不能跟 `skills/` 底下的團隊 skill 同名 |
-| `url` | 同 `[[repos]]` 的三種寫法，clone 時照 `protocol` 轉換 |
-| `commit` | 完整的 40 或 64 個小寫 hex，不能是分支或 tag |
-| `subdir` | `.` 或 repo 裡的相對路徑，不能有 `.`、`..`、`.git` 段；底下要有 `SKILL.md` |
+| `name` | Same rule as `name` in `[[repos]]`; must not be `hearth` (ignoring case), and must not share a name with a team skill under `skills/` |
+| `url` | The same three forms as `[[repos]]`, converted according to `protocol` on clone |
+| `commit` | A full 40 or 64 lowercase hex characters; must not be a branch or tag |
+| `subdir` | `.` or a relative path inside the repo, with no `.`, `..`, or `.git` segments; must contain `SKILL.md` |
 
-一個 repo 有多個 skill 時，用 `subdirs` 寫成一筆群組，整組共用一個 commit 和一份 checkout：
+When a repo has several skills, write them as one group entry with `subdirs`; the whole group shares one commit and one checkout:
 
 ```toml
 [[skills]]
@@ -111,45 +111,45 @@ commit = "0123456789abcdef0123456789abcdef01234567"
 subdirs = ["skills/grilling", "skills/grill-me"]
 ```
 
-- 一筆只能有 `subdir` 或 `subdirs` 其中一個。`subdirs` 不能是空的，每個值的規則同 `subdir`，但不能是 `.`，也不能重複。
-- 每個 skill 的名字是 subdir 的最後一段（例如 `grilling`），規則同 `name`，同一個群組裡不能重複；`hearth.local.toml` 的 `skills` 寫的是這個名字。
-- 群組名不能跟任何一筆的 `name` 或任何群組裡的 skill 同名。不同群組有同名的 skill 時，兩個都是 `skill-invalid`。
-- `skill add <url>` 沒給 `--subdir` 時會 clone 一份到系統暫存目錄、列出所有 `SKILL.md`（不 checkout、不執行裡面的東西，用完就刪）：頂層有 `SKILL.md` 或只有一個就加成單一 skill，兩個以上就建群組。repo 根目錄有 `.claude-plugin/plugin.json` 時，成員是它 `skills` 欄位列的路徑底下的 skill，群組名是它的 `name`；沒加入的會逐一列出，可以用 `skill add <url> --name <群組> --subdir <路徑>` 補進去。給多個 `--subdir` 就直接建群組、不列檔案。
-- `skill enable <群組名>` 開整組、`skill disable <群組名>` 關掉整組已開的；`skill remove <群組名>` 移除整筆，`skill remove <skill>` 只把那個 skill 拿出群組，多個群組有同名的 skill 時寫成 `skill remove <群組名>/<skill>` 指定哪一組；`skill update <群組名>` 換整組的 pin。
-- 舊版（`schema_version = 1`）的設定檔要先跑 `hearth upgrade`，它只改 `schema_version` 和 `min_hearth_version` 兩個值。
+- An entry may have only one of `subdir` or `subdirs`. `subdirs` must not be empty; each value follows the same rule as `subdir`, but must not be `.` and must not repeat.
+- Each skill's name is the last segment of its subdir (for example `grilling`), follows the same rule as `name`, and must not repeat within a group; the `skills` list in `hearth.local.toml` uses this name.
+- A group's name must not match any entry's `name` or any skill in any group. When different groups have skills with the same name, both are `skill-invalid`.
+- Without `--subdir`, `skill add <url>` clones a copy into the system temporary directory and lists every `SKILL.md` (no checkout, nothing inside is run, and the copy is deleted afterward): if there is a top-level `SKILL.md` or only one, it is added as a single skill; with two or more, it creates a group. When the repo root has `.claude-plugin/plugin.json`, the members are the skills under the paths listed in its `skills` field, and the group's name is its `name`; skills left out are listed one by one, and you can add them with `skill add <url> --name <group> --subdir <path>`. Given several `--subdir` flags, it creates the group directly without listing files.
+- `skill enable <group>` turns on the whole group and `skill disable <group>` turns off the group's enabled skills; `skill remove <group>` removes the whole entry, and `skill remove <skill>` only takes that skill out of its group; when several groups have a skill of that name, write `skill remove <group>/<skill>` to say which group; `skill update <group>` changes the whole group's pin.
+- Config files from older versions (`schema_version = 1`) need `hearth upgrade` first; it changes only two values, `schema_version` and `min_hearth_version`.
 
-`hearth.local.toml` 的個人選擇：`agents = ["claude", "codex"]`、`skills = ["pdf"]`（MCP 和 subagent 是 `mcp`、`subagents`），不存在代表空的。
+Personal choices in `hearth.local.toml`: `agents = ["claude", "codex"]`, `skills = ["pdf"]` (MCP and subagents use `mcp` and `subagents`); a missing key means empty.
 
-- 沒給 `--commit` 時 `skill add`、`skill update` 用 `git ls-remote` 問遠端 `HEAD`；給了完整 SHA 時不連網。
-- `skill sync` 把外部 skill clone 到 `vendor/skills/<name>`（群組一筆一份，至少開了一個成員才 clone）、detached 在 pin，內建的 `hearth` skill 寫到 `.hearth/skills/hearth/`，再 symlink 到 `.claude/skills/`（`claude`）、`.agents/skills/`（`codex`）。已經在 pin 的不 clone、不 fetch。
-- `skill remove` 只改 `hearth.toml`：下次 `sync` 清掉 link，`vendor/skills/<name>` 要自己刪。
-- `doctor` 也檢查選到的 skill、MCP server 和 subagent，以及不合格的 subagent 定義。`not-installed`、`link-missing`、`unknown`、`agent-missing` 只是警告。
+- Without `--commit`, `skill add` and `skill update` ask the remote for `HEAD` with `git ls-remote`; given a full SHA, they do not use the network.
+- `skill sync` clones external skills into `vendor/skills/<name>` (one copy per group entry, cloned only when at least one member is enabled), detached at the pin, writes the built-in `hearth` skill to `.hearth/skills/hearth/`, and then symlinks them into `.claude/skills/` (`claude`) and `.agents/skills/` (`codex`). Skills already at the pin are not cloned or fetched.
+- `skill remove` changes only `hearth.toml`: the next `sync` clears the link, and you delete `vendor/skills/<name>` yourself.
+- `doctor` also checks the chosen skills, MCP servers, and subagents, and invalid subagent definitions. `not-installed`, `link-missing`, `unknown`, `agent-missing` are only warnings.
 
-| 類別 | 意思 | 怎麼處理 |
+| Category | Meaning | What to do |
 | --- | --- | --- |
-| `agent-missing` | 選了的 agent CLI 不在 PATH。只是警告，link 照樣建 | 安裝那個 agent，或 `hearth config agents` 拿掉它 |
-| `not-installed` | 選了但還沒裝 | `hearth skill sync` |
-| `pin-mismatch` | `vendor/skills/<name>` 不在 pin，而且有本機改動、ignored 檔、本機 commit 或不是 detached，所以沒換 | 自己確認內容，刪掉那個目錄再 `sync` |
-| `skill-invalid` | `subdir` 底下沒有 `SKILL.md`、解析後跑出 checkout，或名稱跟別的來源衝突 | 修 `hearth.toml` 或改團隊 skill 的目錄名 |
-| `link-missing`、`link-stale` | `hearth` 的 link 不見了或指錯 | `hearth skill sync` 會修 |
-| `link-conflict` | 那個位置有你自己的檔案或 link，`hearth` 不動它 | 自己移走再 `sync` |
-| `symlink-unavailable` | 這個檔案系統建不了 symlink；`hearth` 不改用複製 | 換一個支援 symlink 的位置 |
-| `unknown` | 你選著的 skill 已經被移除；當成沒選 | `hearth skill disable <name>` |
+| `agent-missing` | A chosen agent CLI is not on PATH. Only a warning; links are created anyway | Install that agent, or remove it with `hearth config agents` |
+| `not-installed` | Chosen but not installed yet | `hearth skill sync` |
+| `pin-mismatch` | `vendor/skills/<name>` is not at the pin and has local changes, ignored files, local commits, or is not detached, so it was not switched | Check the contents yourself, delete that directory, then `sync` |
+| `skill-invalid` | No `SKILL.md` under `subdir`, the resolved path leaves the checkout, or the name conflicts with another source | Fix `hearth.toml` or rename the team skill's directory |
+| `link-missing`, `link-stale` | A link made by `hearth` is gone or points to the wrong place | `hearth skill sync` fixes it |
+| `link-conflict` | That location holds your own file or link, and `hearth` leaves it alone | Move it away yourself, then `sync` |
+| `symlink-unavailable` | This file system cannot create symlinks; `hearth` does not fall back to copying | Use a location that supports symlinks |
+| `unknown` | A skill you have chosen has been removed; it is treated as not chosen | `hearth skill disable <name>` |
 
-`hearth sync` 依序跑 `hearth skill sync`、`hearth mcp sync`、`hearth subagent sync`，前面失敗也會跑後面，exit code 取最嚴重的那個；`--force` 給 MCP 和 subagent。
+`hearth sync` runs `hearth skill sync`, `hearth mcp sync`, `hearth subagent sync` in order, runs the later ones even when an earlier one fails, and takes the most severe exit code; `--force` goes to MCP and subagents.
 
-## MCP server
+## MCP servers
 
 ```sh
-hearth mcp add docs --env-var DOCS_TOKEN -- npx -y @acme/docs-mcp           # stdio，團隊檔
+hearth mcp add docs --env-var DOCS_TOKEN -- npx -y @acme/docs-mcp           # stdio, team file
 hearth mcp add tracker --url https://mcp.example.invalid/mcp --bearer-token-env TRACKER_TOKEN \
-  --header-env 'X-Workspace=TRACKER_WORKSPACE'                              # http，團隊檔
-hearth mcp enable docs tracker                                              # 個人檔
-hearth sync                                                                 # 產生各 agent 的 MCP 設定
-hearth mcp list                                                             # 只讀；列出缺的環境變數名稱
+  --header-env 'X-Workspace=TRACKER_WORKSPACE'                              # http, team file
+hearth mcp enable docs tracker                                              # personal file
+hearth sync                                                                 # generates each agent's MCP config
+hearth mcp list                                                             # read-only; lists missing environment variable names
 ```
 
-`hearth.toml` 的 MCP server：
+MCP servers in `hearth.toml`:
 
 ```toml
 [[mcp]]
@@ -167,38 +167,38 @@ bearer_token_env = "TRACKER_TOKEN"
 header_envs = { "X-Workspace" = "TRACKER_WORKSPACE" }
 ```
 
-| 欄位 | 規則 |
+| Field | Rules |
 | --- | --- |
-| `name` | 英數字、`_`、`-`，以英數字開頭，不能有 `.`。不分大小寫不得重複 |
-| `transport` | `stdio` 或 `http` |
-| `command`、`args`、`env_vars` | 只給 `stdio`。`command` 必填；`env_vars` 是要轉發給 server 的環境變數名稱 |
-| `url`、`bearer_token_env`、`header_envs` | 只給 `http`。`url` 必須是 `https://`，或 `http://localhost`、`http://127.0.0.1`（可帶 port 和 path），不能帶帳號密碼；`header_envs` 是「header 名稱 → 環境變數名稱」，不能有 `Authorization`（token 用 `bearer_token_env`） |
+| `name` | Letters, digits, `_`, `-`, starting with a letter or digit; no `.`. Must not repeat, ignoring case |
+| `transport` | `stdio` or `http` |
+| `command`, `args`, `env_vars` | Only for `stdio`. `command` is required; `env_vars` are the names of environment variables to pass through to the server |
+| `url`, `bearer_token_env`, `header_envs` | Only for `http`. `url` must be `https://`, or `http://localhost` or `http://127.0.0.1` (with optional port and path), with no username or password; `header_envs` maps "header name → environment variable name" and must not include `Authorization` (use `bearer_token_env` for tokens) |
 
-- 秘密只寫環境變數名稱（大寫英數字和 `_`），不寫值；這個檔案沒有地方放 token 或 header 的值。
-- `hearth.local.toml` 的個人選擇：`mcp = ["docs"]`。被團隊移除的 server 會變成 `unknown` 警告，用 `hearth mcp disable <name>` 清掉。
-- `sync` 照你選的 agent 整檔產生：`claude` 寫 `.mcp.json`，`codex` 寫 `.codex/config.toml`，兩個都被 `.gitignore` 忽略。取消 agent 後，`sync` 會刪掉它產生過的那份。
-- Claude Code 第一次讀到 `.mcp.json` 的 server 時會要求你核准；Codex 只在 trusted project 讀 `.codex/config.toml`。
-- 環境變數要在啟動 agent 的那個 shell 裡 export；`hearth doctor` 只能檢查跑 doctor 的那個 shell。
-- `sync` 把產生的檔案的 hash 記在 `.hearth/state.json`。檔案被手改過，`sync` 不覆寫也不刪它，報 `generated-modified`、exit 1，其他檔照常更新；`hearth sync --force` 才覆寫。
-- `.mcp.json`、`.codex`、`.hearth` 和它們底下的檔案是 symlink 或類型不對時報 `path-conflict`，加 `--force` 也不寫。
+- Secrets are written only as environment variable names (uppercase letters, digits, and `_`), never as values; this file has no place for token or header values.
+- Personal choices in `hearth.local.toml`: `mcp = ["docs"]`. A server the team removed becomes an `unknown` warning; clear it with `hearth mcp disable <name>`.
+- `sync` generates whole files for the agents you chose: `claude` writes `.mcp.json` and `codex` writes `.codex/config.toml`, both ignored by `.gitignore`. After you drop an agent, `sync` deletes the file it generated for it.
+- Claude Code asks you to approve the servers in `.mcp.json` the first time it reads them; Codex reads `.codex/config.toml` only in a trusted project.
+- Export the environment variables in the shell that starts the agent; `hearth doctor` can only check the shell it runs in.
+- `sync` records the hash of each generated file in `.hearth/state.json`. When a file has been edited by hand, `sync` neither overwrites nor deletes it, reports `generated-modified`, exits 1, and still updates the other files; only `hearth sync --force` overwrites it.
+- When `.mcp.json`, `.codex`, `.hearth`, or the files under them are symlinks or the wrong type, it reports `path-conflict` and writes nothing, even with `--force`.
 
-| 類別 | 意思 | 怎麼處理 |
+| Category | Meaning | What to do |
 | --- | --- | --- |
-| `generated-modified` | 產生的檔案在上次 `sync` 之後被改過，或檔案已經存在但不是 `hearth` 寫的 | 把要的設定改進 `hearth.toml`，再 `hearth sync --force` |
-| `env-missing` | 選到的 server 需要的環境變數沒設，或 `command` 不在 PATH。只是警告，只印名稱 | 在啟動 agent 的 shell 裡 export 那個變數，或安裝那個指令 |
+| `generated-modified` | A generated file was changed after the last `sync`, or the file already exists but was not written by `hearth` | Move the settings you want into `hearth.toml`, then run `hearth sync --force` |
+| `env-missing` | An environment variable a chosen server needs is not set, or `command` is not on PATH. Only a warning, and only names are printed | Export that variable in the shell that starts the agent, or install that command |
 
-## Subagent
+## Subagents
 
-團隊在 `subagents/<name>.md` 寫 subagent 定義，改動走 PR；同一份同時給 Claude Code 和 Codex 用。每個人自己選要用哪些，預設全部不開：
+The team writes subagent definitions in `subagents/<name>.md`, and changes go through PRs; one file serves both Claude Code and Codex. Each person picks which ones to use; all are off by default:
 
 ```sh
-hearth subagent enable subagent      # 個人檔
-hearth sync                          # 照選的 agent 產生 .claude/agents/、.codex/agents/
-hearth subagent list                 # 只讀；列出每個定義的狀態和不合格的原因
-hearth subagent disable subagent     # 下次 sync 刪掉產生過的檔
+hearth subagent enable subagent      # personal file
+hearth sync                          # generates .claude/agents/ and .codex/agents/ for the chosen agents
+hearth subagent list                 # read-only; lists each definition's status and why it is invalid
+hearth subagent disable subagent     # the next sync deletes the files it generated
 ```
 
-定義的格式是 Markdown 加 YAML frontmatter：
+A definition is Markdown with YAML frontmatter:
 
 ```markdown
 ---
@@ -216,165 +216,165 @@ codex:
 You review diffs. Report each finding with its file and line.
 ```
 
-| 部分 | 規則 |
+| Part | Rules |
 | --- | --- |
-| 檔名 | `subagents/` 第一層的 `<name>.md`；`_` 開頭的是模板，不會出現在清單 |
-| `name` | 必填，等於檔名去掉 `.md`；小寫英文字母開頭，只有小寫英數字、`_`、`-` |
-| `description` | 必填，不能是空的 |
-| `claude:`、`codex:` | 選填的 mapping，放各工具自己的欄位，照原樣轉過去，`hearth` 不檢查欄位名；不能有 `name`、`description`、`developer_instructions` |
-| 內文 | frontmatter 後面的內容，不能是空的；Claude 檔的內文，也是 Codex 檔的 `developer_instructions` |
+| File name | `<name>.md` directly under `subagents/`; files starting with `_` are templates and do not appear in the list |
+| `name` | Required; equals the file name without `.md`; starts with a lowercase letter and contains only lowercase letters, digits, `_`, `-` |
+| `description` | Required; must not be empty |
+| `claude:`, `codex:` | Optional mappings holding each tool's own fields, passed through as is; `hearth` does not check the field names; must not contain `name`, `description`, `developer_instructions` |
+| Body | The content after the frontmatter; must not be empty; it is the body of the Claude file and also the `developer_instructions` of the Codex file |
 
-- frontmatter 只接受 `name`、`description`、`claude`、`codex` 四個 key，任何地方都不能用 YAML 的 anchor（`&x`）和 alias（`*x`）。
-- `claude` 產生 `.claude/agents/<name>.md`：`name`、`description`、`claude:` 的欄位照原本順序，最後是內文。值照轉，註解、引號樣式和 flow list 的寫法不保留。
-- `codex` 產生 `.codex/agents/<name>.toml`：`name`、`description`、`developer_instructions`，再接 `codex:` 的欄位。值只能是字串、整數、浮點數、布林和這些值的 list；巢狀 mapping 寫成 `features.shell_tool = false` 這種 dotted key。`null`、日期時間、非字串的 key、list 裡放 mapping 都算不合格。
-- **Codex 端還沒實測生效**：檔案照 Codex 官方文件產生，但 2026-11-18 用 Codex 0.162.1 試，spawn 時指名的角色沒有套用定義。名稱有 `-` 的 subagent 在 Codex 可能叫不到。
-- 不合格的定義不產生，`subagent list` 和 `doctor` 顯示原因，其他定義照常產生；`enable` 不合格或不存在的名字時報 `usage`，`hearth.local.toml` 不變。
-- 已經選了、之後才變不合格的（例如 PR 改壞 frontmatter），產生過的檔保持不動，`sync` 報 `subagent-invalid`、exit 1。
-- 定義被刪掉或改名、但還在個人清單裡的名字當成 `unknown`：`sync` 刪掉它產生過的檔，用 `hearth subagent disable <name>` 清掉。
-- 產生的檔跟 MCP 設定一樣記在 `.hearth/state.json`：被手改過的不覆寫也不刪，報 `generated-modified`，`hearth sync --force` 才覆寫；路徑上有 symlink 時報 `path-conflict`，加 `--force` 也不寫。
-- `subagents/` 是 symlink 或不是目錄時報 `path-conflict`、exit 2，什麼都不寫也不刪；不存在就當成沒有 subagent。
-- `doctor` 和 `subagent list` 也檢查已經取消、沒選的 agent 或來源已刪掉的 subagent 留下的產生檔：被手改過的報 `generated-modified`，跟 `sync` 一致。
-- 你自己放在 `.claude/agents/`、`.codex/agents/` 的其他檔，`hearth` 不碰；`.claude/agents/` 被 `.gitignore` 忽略，不會進版控。
+- The frontmatter accepts only four keys, `name`, `description`, `claude`, `codex`, and YAML anchors (`&x`) and aliases (`*x`) are not allowed anywhere.
+- `claude` generates `.claude/agents/<name>.md`: `name`, `description`, the `claude:` fields in their original order, and the body last. Values are carried over; comments, quoting style, and flow-list style are not kept.
+- `codex` generates `.codex/agents/<name>.toml`: `name`, `description`, `developer_instructions`, followed by the `codex:` fields. Values may only be strings, integers, floats, booleans, and lists of these; nested mappings are written as dotted keys like `features.shell_tool = false`. `null`, dates and times, non-string keys, and mappings inside lists are all invalid.
+- **The Codex side is not yet confirmed to take effect**: the files follow the official Codex docs, but in a 2026-11-18 test with Codex 0.162.1, the role named at spawn did not get the definition applied. Subagents whose names contain `-` may not be callable in Codex.
+- Invalid definitions are not generated; `subagent list` and `doctor` show the reason, and other definitions are generated as usual; `enable` with an invalid or nonexistent name reports `usage`, and `hearth.local.toml` stays unchanged.
+- For one that was already chosen and became invalid later (for example, a PR broke its frontmatter), the files it generated stay as they are, and `sync` reports `subagent-invalid` and exits 1.
+- A name still in your personal list whose definition was deleted or renamed counts as `unknown`: `sync` deletes the files it generated; clear it with `hearth subagent disable <name>`.
+- Like the MCP config, the generated files are recorded in `.hearth/state.json`: files edited by hand are neither overwritten nor deleted, `generated-modified` is reported, and only `hearth sync --force` overwrites them; when a symlink sits in the path, it reports `path-conflict` and writes nothing, even with `--force`.
+- When `subagents/` is a symlink or not a directory, it reports `path-conflict`, exits 2, and writes or deletes nothing; if it does not exist, there are taken to be no subagents.
+- `doctor` and `subagent list` also check generated files left behind by agents that were dropped, subagents that are not chosen, or subagents whose source was deleted: files edited by hand report `generated-modified`, consistent with `sync`.
+- Other files you put in `.claude/agents/` or `.codex/agents/` yourself are left alone by `hearth`; `.claude/agents/` is ignored by `.gitignore` and does not enter version control.
 
-| 類別 | 意思 | 怎麼處理 |
+| Category | Meaning | What to do |
 | --- | --- | --- |
-| `subagent-invalid` | `subagents/<name>.md` 不合上面的規則 | 照訊息修那個檔，開 PR |
-| `not-synced` | 選了，但產生的檔不存在或不是最新的。只是警告 | `hearth sync` |
+| `subagent-invalid` | `subagents/<name>.md` does not meet the rules above | Fix that file as the message says, and open a PR |
+| `not-synced` | Chosen, but the generated file is missing or out of date. Only a warning | `hearth sync` |
 
-## ssh 或 https
+## ssh or https
 
-`hearth.toml` 每個產品只寫一個 URL，ssh 或 https 寫法都可以。clone 時照每個人 `hearth.local.toml` 的 `protocol` 轉換，`hearth.toml` 不會被改：
+`hearth.toml` holds one URL per product, in either ssh or https form. On clone it is converted according to the `protocol` in each person's `hearth.local.toml`; `hearth.toml` itself is not changed:
 
-| `hearth.toml` 的寫法 | `protocol = "ssh"` | `protocol = "https"` |
+| Form in `hearth.toml` | `protocol = "ssh"` | `protocol = "https"` |
 | --- | --- | --- |
-| `git@<host>:<path>` | 不變 | `https://<host>/<path>` |
+| `git@<host>:<path>` | Unchanged | `https://<host>/<path>` |
 | `ssh://git@<host>/<path>` | `git@<host>:<path>` | `https://<host>/<path>` |
-| `https://<host>/<path>` | `git@<host>:<path>` | 不變 |
+| `https://<host>/<path>` | `git@<host>:<path>` | Unchanged |
 
-- `<host>`、`<path>` 原樣保留，包含結尾有沒有 `.git`。
-- 帶 port、其他使用者、`http://`、本機路徑一律不收，因為轉不了。
-- 沒設 `protocol` 時，`hearth clone` 會實際連線試 ssh 再試 https，把結果寫進 `hearth.local.toml` 並印出來。改法：`hearth config protocol <ssh|https>`。
+- `<host>` and `<path>` are kept as is, including whether they end in `.git`.
+- URLs with a port, another user, `http://`, or a local path are always rejected, because they cannot be converted.
+- When `protocol` is not set, `hearth clone` connects to try ssh and then https, writes the result into `hearth.local.toml`, and prints it. To change it: `hearth config protocol <ssh|https>`.
 
-## clone 做什麼、不做什麼
+## What clone does and does not do
 
-| 目標路徑的狀態 | 結果 |
+| State of the target path | Result |
 | --- | --- |
-| 不存在 | 用 `branch` clone，輸出 `cloned` |
-| 已經是 Git checkout，而且 origin 和預期的 URL 相同 | 輸出 `skipped`，不做任何更動 |
-| 其他情況 | 回報錯誤，不做任何更動 |
+| Does not exist | Clones with `branch` and prints `cloned` |
+| Already a Git checkout, and origin matches the expected URL | Prints `skipped` and changes nothing |
+| Anything else | Reports an error and changes nothing |
 
-- 先驗證整份 `hearth.toml` 和指定的 `name`，有錯就完全不 clone。
-- 一個產品失敗不影響其他產品。最後列出 cloned、skipped、failed 各有哪些。
-- clone 先做在同一層的暫存目錄，成功後才改名到目標路徑。失敗時目標路徑不會留下半成品，下次執行會重新 clone。
-- 對已經存在的 checkout，不 pull、不 fetch、不切分支、不 reset、不 stash、不 clean，也不修改 remote。
+- It first validates the whole `hearth.toml` and the given `name`; if anything is wrong, it clones nothing at all.
+- One product failing does not affect the others. At the end it lists which were cloned, skipped, and failed.
+- The clone is made first in a temporary directory at the same level, and renamed to the target path only after it succeeds. On failure, nothing half-done is left at the target path, and the next run clones again.
+- For a checkout that already exists, it does not pull, fetch, switch branches, reset, stash, or clean, and does not change the remote.
 
-所以 **`hearth clone` 不保證既有 checkout 是最新的**，也不保證它停在 `branch` 指定的分支。要更新請自己到產品 repo 裡操作。
+So **`hearth clone` does not guarantee an existing checkout is up to date**, nor that it is on the branch `branch` names. To update one, work in the product repo yourself.
 
-### origin 採精確比對
+### origin is compared exactly
 
-既有 checkout 的 `remote.origin.url` 要和預期的 URL 是完全相同的字串。SSH 和 HTTPS 不視為相同，結尾有沒有 `.git` 也不視為相同。
+An existing checkout's `remote.origin.url` must be exactly the same string as the expected URL. SSH and HTTPS are not treated as the same, and neither is the presence or absence of a trailing `.git`.
 
-`protocol` 改了之後，`hearth clone`、`hearth doctor` 會報 `remote-mismatch`。`hearth repo fix-remote` 只在差異純粹是協定時改 origin；其他差異只報告，自己確認哪一邊才對。
+After `protocol` changes, `hearth clone` and `hearth doctor` report `remote-mismatch`. `hearth repo fix-remote` changes origin only when the difference is purely the protocol; other differences are only reported, and you confirm yourself which side is right.
 
 ### Exit code
 
-| exit code | 意思 |
+| exit code | Meaning |
 | --- | --- |
-| 0 | 成功；`hearth.toml` 沒有產品也是 0 |
-| 1 | 至少一個產品失敗，其他照常處理 |
-| 2 | 設定、用法、版本或環境錯誤。這時沒有 clone 任何東西 |
-| 130 | 執行中按 Ctrl-C 中斷。clone 到一半的暫存目錄會被清掉，重跑即可 |
+| 0 | Success; also 0 when `hearth.toml` has no products |
+| 1 | At least one product failed; the others were handled as usual |
+| 2 | Config, usage, version, or environment error. Nothing was cloned in this case |
+| 130 | Interrupted with Ctrl-C while running. Half-cloned temporary directories are cleaned up; just run it again |
 
-### 錯誤類別
+### Error categories
 
-錯誤訊息的格式是 `error [<類別>] <說明>`，跟單一產品有關的是 `error [<類別>] <name>: <說明>`。
+Error messages have the format `error [<category>] <message>`, and those about a single product are `error [<category>] <name>: <message>`.
 
-| 類別 | 意思 | 怎麼處理 |
+| Category | Meaning | What to do |
 | --- | --- | --- |
-| `config` | `hearth.toml` 或 `hearth.local.toml` 的格式或內容不合規則 | 照訊息修那個檔案，訊息會寫出位置 |
-| `usage` | 指令或參數不對，例如指定的 `name` 不在 `hearth.toml` | 訊息會列出可用的選擇 |
-| `env` | 找不到 `git`，或連不上任何產品 | 安裝 git、檢查網路和權限 |
-| `version` | 設定檔需要比你更新的 `hearth` | 升級 `hearth` |
-| `path-conflict` | 目標路徑被佔用或無法使用：不是目錄、不是獨立的 Git checkout、路徑上有 symlink、無法建立目錄 | 自己確認那個路徑的內容，再決定移走或刪除。`hearth` 不會動它 |
-| `remote-mismatch` | 既有 checkout 的 origin 和預期的 URL 不是同一個字串 | 只差協定就跑 `hearth repo fix-remote`；否則確認哪一邊才對 |
-| `clone-failed` | `git clone` 失敗，或 `branch` 不是分支 | 看 git 印出的錯誤：權限、網路、URL、分支名稱 |
+| `config` | The format or content of `hearth.toml` or `hearth.local.toml` breaks the rules | Fix that file as the message says; the message gives the location |
+| `usage` | Wrong command or arguments, for example a `name` that is not in `hearth.toml` | The message lists the available choices |
+| `env` | `git` was not found, or no product could be reached | Install git; check the network and permissions |
+| `version` | The config file needs a newer `hearth` than yours | Upgrade `hearth` |
+| `path-conflict` | The target path is taken or unusable: not a directory, not a separate Git checkout, a symlink in the path, or the directory cannot be created | Check that path's contents yourself, then decide whether to move or delete it. `hearth` does not touch it |
+| `remote-mismatch` | An existing checkout's origin is not the same string as the expected URL | If only the protocol differs, run `hearth repo fix-remote`; otherwise confirm which side is right |
+| `clone-failed` | `git clone` failed, or `branch` is not a branch | Read the error git printed: permissions, network, URL, branch name |
 
-### 已知限制
+### Known limitations
 
-- `products/` 本身，或 `path` 中間任何一層是 symlink 時，`hearth` 會拒絕，即使 symlink 指向的位置是安全的。
-- 路徑檢查和 clone 之間有時間差。`hearth` 是本機開發工具，不防同一台機器上同時有人惡意改動目錄。
-- 程序被 `kill` 終止時（Ctrl-C 不算），`products/` 底下可能留下 `.hearth-` 開頭的暫存目錄。它不會被當成 checkout，也不會被自動刪除，請手動刪除。
-- Claude Code 從 `products/<name>/` 啟動時讀不到 Home Repo 根目錄的 `.claude/skills/`；要用 skill 就從根目錄啟動。
-- Codex 的 workspace-write sandbox 下 `.agents/` 是唯讀，agent 自己跑 `hearth skill sync` 會失敗，請使用者自己跑。
-- `products/` 被 `.gitignore` 忽略，所以 Claude Code 建 worktree 時不會帶上 `products/`，`@` 選單也不會列出裡面的檔案。
+- When `products/` itself, or any level in the middle of a `path`, is a symlink, `hearth` refuses, even if the symlink points somewhere safe.
+- There is a time gap between the path checks and the clone. `hearth` is a local development tool and does not guard against someone on the same machine maliciously changing directories at the same time.
+- When the process is terminated by `kill` (Ctrl-C does not count), temporary directories starting with `.hearth-` may be left under `products/`. They are not treated as checkouts and are not deleted automatically; delete them by hand.
+- Claude Code started from `products/<name>/` cannot read `.claude/skills/` at the Home Repo root; to use skills, start it from the root.
+- Under Codex's workspace-write sandbox, `.agents/` is read-only, so `hearth skill sync` run by the agent itself fails; ask the user to run it.
+- `products/` is ignored by `.gitignore`, so worktrees that Claude Code creates do not include `products/`, and the `@` menu does not list the files inside it.
 
-## 目錄
+## Directories
 
-| 路徑 | 內容 |
+| Path | Contents |
 | --- | --- |
-| `AGENTS.md` | 共同規則，唯一來源 |
-| `CLAUDE.md` | 只負責讓 Claude Code 載入 `AGENTS.md` |
-| `hearth.toml` | 產品 repo 清單 |
-| `products/` | 產品 repo 的 checkout。由 `hearth clone` 建立，不在版控內 |
-| `memory/` | 團隊記憶：跨產品的決策和團隊習慣，不記系統規格，見 [`memory/README.md`](memory/README.md) |
-| `skills/` | 團隊自己寫的 skill 和模板，見 [`skills/README.md`](skills/README.md) |
-| `vendor/`、`.hearth/`、`.claude/skills/`、`.agents/skills/` | `hearth sync` 產生的外部 skill、內建 skill 和 link，不在版控內 |
-| `.mcp.json`、`.codex/` | `hearth sync` 產生的 MCP 設定和 Codex 的 subagent 檔，不在版控內 |
-| `subagents/` | 團隊的 subagent 定義，見上面的「Subagent」 |
-| `agents/` | 派工給 agent 的 prompt 模板，以及記錄預設模型的 `models.json`，見 [`agents/README.md`](agents/README.md) |
-| `.claude/` | Claude Code 的共用設定（`settings.json`）；`hearth sync` 產生的 `agents/`、`skills/` 不在版控內 |
-| `workflows/` | 開發、code review、跨 repo 變更的流程，見 [`workflows/README.md`](workflows/README.md) |
+| `AGENTS.md` | The shared rules, the single source |
+| `CLAUDE.md` | Only makes Claude Code load `AGENTS.md` |
+| `hearth.toml` | The product repo list |
+| `products/` | Checkouts of the product repos. Created by `hearth clone`, not in version control |
+| `memory/` | Team memory: cross-product decisions and team habits, not system specifications; see [`memory/README.md`](memory/README.md) |
+| `skills/` | Skills the team wrote, and the template; see [`skills/README.md`](skills/README.md) |
+| `vendor/`, `.hearth/`, `.claude/skills/`, `.agents/skills/` | External skills, built-in skills, and links generated by `hearth sync`; not in version control |
+| `.mcp.json`, `.codex/` | MCP config and Codex subagent files generated by `hearth sync`; not in version control |
+| `subagents/` | The team's subagent definitions; see "Subagents" above |
+| `agents/` | Prompt templates for handing work to agents, and `models.json`, which records the default models; see [`agents/README.md`](agents/README.md) |
+| `.claude/` | Shared Claude Code settings (`settings.json`); the `agents/` and `skills/` that `hearth sync` generates are not in version control |
+| `workflows/` | Workflows for development, code review, and cross-repo changes; see [`workflows/README.md`](workflows/README.md) |
 
-## 工作方式
+## How to work
 
-從 Home Repo 根目錄啟動你的 agent 或編輯器，讓它讀到 `AGENTS.md`。
+Start your agent or editor from the Home Repo root so that it reads `AGENTS.md`.
 
-### 單一產品的任務
+### Single-product tasks
 
-1. 確認產品已經 clone：`hearth clone <name>`。
-2. 告訴 agent 這次要改的是哪個產品。
-3. 照 [`workflows/development.md`](workflows/development.md)。
+1. Confirm the product is cloned: `hearth clone <name>`.
+2. Tell the agent which product this task changes.
+3. Follow [`workflows/development.md`](workflows/development.md).
 
-### 跨產品的任務
+### Cross-product tasks
 
-1. 確認相關產品都已經 clone：`hearth clone <name> <name>`。
-2. 明確列出這次可以改哪些 repo。agent 不會因為任務涉及多個產品就修改沒列到的 repo。
-3. 照 [`workflows/cross-repo-change.md`](workflows/cross-repo-change.md)。
+1. Confirm all related products are cloned: `hearth clone <name> <name>`.
+2. List explicitly which repos may be changed this time. An agent does not change unlisted repos just because the task involves several products.
+3. Follow [`workflows/cross-repo-change.md`](workflows/cross-repo-change.md).
 
-### 交辦給另一個 agent
+### Handing off to another agent
 
-複製 [`agents/_task-brief.md`](agents/_task-brief.md) 填好再貼給對方。沒有工具會自動讀 `agents/`。
+Copy [`agents/_task-brief.md`](agents/_task-brief.md), fill it in, and paste it to the other agent. No tool reads `agents/` automatically.
 
-### 模型設定
+### Model settings
 
-只涵蓋 Claude Code 直接連 Anthropic API。主對話的模型不寫死，啟動時自己指定：
+This covers only Claude Code connecting directly to the Anthropic API. The main conversation's model is not hard-coded; pick it yourself at startup:
 
 ```sh
 claude --model opus --effort medium
 ```
 
-通用 subagent 由 `subagents/subagent.md` 的 `claude:` 明確指定 `model: sonnet`（要用的人先 `hearth subagent enable subagent`、`hearth sync`），不跟著主對話的 `/model` 切換。`agents/models.json` 是給人看的紀錄，沒有程式讀它。Codex、Grok 和其他工具要各自設定，這份設定控制不到它們。優先順序和怎麼固定版本，見 [`agents/README.md`](agents/README.md#模型設定claude-codeanthropic-api)。
+The general-purpose subagent explicitly sets `model: sonnet` under `claude:` in `subagents/subagent.md` (to use it, first run `hearth subagent enable subagent` and `hearth sync`), so it does not switch along with the main conversation's `/model`. `agents/models.json` is a record for people; no program reads it. Codex, Grok, and other tools need their own settings, which this config does not control. For the precedence order and how to pin a version, see [`agents/README.md`](agents/README.md#model-settings-claude-code-anthropic-api).
 
-### Claude Code 會不會讀到共同規則
+### Does Claude Code read the shared rules
 
-`CLAUDE.md` 用 `@AGENTS.md` 載入共同規則。Claude Code 會往上層目錄找 `CLAUDE.md`，所以從 Home Repo 根目錄或 `products/<name>/` 底下啟動都讀得到；從 Home Repo 以外的目錄啟動讀不到。
+`CLAUDE.md` loads the shared rules with `@AGENTS.md`. Claude Code looks for `CLAUDE.md` in parent directories, so it reads them when started from the Home Repo root or from under `products/<name>/`; started from a directory outside the Home Repo, it does not.
 
-其他工具不確定會不會自動讀 `AGENTS.md` 時，開始工作前先請它讀 Home Repo 根目錄的 `AGENTS.md`。
+When you are not sure whether another tool reads `AGENTS.md` automatically, ask it to read `AGENTS.md` at the Home Repo root before starting work.
 
-### 搜尋產品程式碼
+### Searching product code
 
-`products/` 被 `.gitignore` 忽略，所以照 `.gitignore` 過濾的搜尋工具，在 Home Repo 根目錄不指定路徑時搜不到產品程式碼。把路徑指到產品的 checkout 就搜得到：
+`products/` is ignored by `.gitignore`, so search tools that filter by `.gitignore` do not find product code when run at the Home Repo root without a path. Point the path at the product's checkout and they will:
 
 ```sh
 rg <pattern> products/<name>
 ```
 
-## Home Repo 和產品 repo 分別管理
+## The Home Repo and product repos are managed separately
 
-- Home Repo 和每個產品 repo 是各自獨立的 Git repo，分別 commit、分別開 PR。
-- 產品的改動提交在產品 repo。在 `products/<name>/` 以外的目錄執行 `git`，操作到的是 Home Repo。
-- Home Repo 的 commit 只記錄 `hearth.toml` 寫的 URL 和分支名稱，**不代表固定的產品版本組合**。同一個 Home Repo commit，不同人、不同時間 clone 到的產品內容可能不同。
-- 需要重現跨產品的驗證時，另外記錄當時每個 repo 的 commit SHA。在 Home Repo 根目錄執行：
+- The Home Repo and each product repo are separate Git repos, with separate commits and separate PRs.
+- Commit product changes in the product repo. Running `git` in a directory outside `products/<name>/` works on the Home Repo.
+- A Home Repo commit records only the URLs and branch names written in `hearth.toml`; **it does not represent a fixed combination of product versions**. With the same Home Repo commit, different people cloning at different times may get different product contents.
+- When you need to reproduce a cross-product verification, also record each repo's commit SHA at the time. Run this at the Home Repo root:
 
   ```sh
   for d in products/*/; do
@@ -382,29 +382,29 @@ rg <pattern> products/<name>
   done
   ```
 
-## 建好之後要改的
+## What to change after setup
 
-1. 這份 README 的標題和第一段：寫上團隊名稱和這個 Home Repo 的 clone URL。
-2. `AGENTS.md`：在 hearth 管理的區段以外，補上團隊共通、但不屬於任何單一產品的規則。
-3. 用 `hearth repo add` 加入產品。
-4. 授權：沒有附 LICENSE。要公開或對外分享前，自己決定授權並加上檔案。
+1. This README's title and first paragraph: add the team name and this Home Repo's clone URL.
+2. `AGENTS.md`: outside the section hearth manages, add the rules that are shared by the team but do not belong to any single product.
+3. Add products with `hearth repo add`.
+4. License: no LICENSE is included. Before making it public or sharing it outside, choose a license yourself and add the file.
 
-## 安全和限制
+## Security and limitations
 
-### .gitignore 不是安全隔離
+### .gitignore is not a security boundary
 
-`.gitignore` 忽略 `/products/`、`/hearth.local.toml`、`hearth sync` 產生的目錄和 MCP 設定、常見的憑證檔和 Claude Code 的本機設定（`.claude/settings.local.json`、`CLAUDE.local.md`），只代表 Home Repo 不追蹤那些檔案。它不是 agent 的讀寫權限設定，也不是安全隔離機制：
+`.gitignore` ignores `/products/`, `/hearth.local.toml`, the directories and MCP config that `hearth sync` generates, common credential files, and Claude Code's local settings (`.claude/settings.local.json`, `CLAUDE.local.md`), which only means the Home Repo does not track those files. It is not a read/write permission setting for agents, and not a security isolation mechanism:
 
-- agent 讀得到、也改得到 `products/` 裡的所有檔案，包含產品 repo 裡的憑證和本機設定。
-- 要限制 agent 能讀寫的範圍，請用你的 agent 工具自己的權限設定或 sandbox。
-- 秘密、憑證、客戶個資、原始敏感 log 不寫進這個 repo 的任何檔案，包含 `memory/`。
+- Agents can read and change every file in `products/`, including credentials and local settings in the product repos.
+- To limit what an agent can read and write, use your agent tool's own permission settings or sandbox.
+- Do not write secrets, credentials, customer personal data, or raw sensitive logs into any file in this repo, including `memory/`.
 
-`.gitignore` 和 `AGENTS.md` 裡 `hearth:begin` 到 `hearth:end` 之間的內容由 `hearth` 管理，之後的版本會整段重寫；標記以外的內容歸團隊，`hearth` 不會改。
+The content between `hearth:begin` and `hearth:end` in `.gitignore` and `AGENTS.md` is managed by `hearth`, and later versions rewrite the whole section; content outside the markers belongs to the team, and `hearth` does not change it.
 
-### 這一版不包含
+### Not included in this version
 
-- 安裝、登入或設定 agent 工具。
-- 把 `agents/` 接到任何工具的自動載入位置。`subagents/` 的定義由 `hearth sync` 轉成 `.claude/agents/`、`.codex/agents/` 的檔，不是 `agents/` 的連結。skill 只有每個人選了、跑過 `hearth skill sync` 才會接到 `.claude/skills/`、`.agents/skills/`。
-- quality-gate 的選擇（要跑哪些 lint、型別檢查、測試門檻）。產品各自照自己 repo 的規範。
-- LICENSE。
-- Windows 支援。
+- Installing, signing in to, or configuring agent tools.
+- Wiring `agents/` to any tool's auto-load location. Definitions in `subagents/` are turned by `hearth sync` into files in `.claude/agents/` and `.codex/agents/`; they are not links to `agents/`. Skills are wired into `.claude/skills/` and `.agents/skills/` only after each person picks them and runs `hearth skill sync`.
+- The choice of quality gate (which lint, type checks, and test thresholds to run). Each product follows its own repo's rules.
+- LICENSE.
+- Windows support.

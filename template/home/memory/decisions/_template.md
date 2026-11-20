@@ -6,18 +6,18 @@ confirmed:
 status: active
 ---
 
-# <決策標題>
+# <Decision title>
 
-## 背景
+## Background
 
-<!-- 當時要解決什麼問題，有哪些限制 -->
+<!-- What problem needed solving at the time, and what the constraints were -->
 
-## 決定
+## Decision
 
-<!-- 決定了什麼，寫到讀的人可以照著做 -->
+<!-- What was decided, written so a reader can follow it -->
 
-## 理由
+## Reasons
 
-## 取捨
+## Trade-offs
 
-<!-- 放棄了哪些做法，接受了什麼代價 -->
+<!-- Which approaches were given up, and what cost was accepted -->

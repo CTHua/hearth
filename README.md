@@ -199,9 +199,10 @@ hearth upgrade
 
 hearth 0.2.0 reads only `schema_version = 2`, which added skill groups. Its `upgrade` changes just two values in place: `schema_version` from 1 to 2 in both files, and `min_hearth_version` in `hearth.toml` to `0.2.0` when it is lower. Comments, blank lines and key order are kept. Commit the upgraded `hearth.toml` in a PR; teammates on 0.1.0 then need to install 0.2.0, and each person runs `hearth upgrade` once for their own `hearth.local.toml`.
 
+A Home Repo created with hearth 0.2.0 or earlier has its files in Traditional Chinese. `upgrade` turns only the marked section of `AGENTS.md` into English; the other files stay as they are, so translate them yourself if you want them to match.
+
 ## Known limitations
 
-- The files `hearth init` writes (`AGENTS.md`, the Home Repo README, workflows) are in Traditional Chinese.
 - Codex subagents are untested. The `.codex/agents/<name>.toml` files follow the Codex docs, but a 2026-11-18 run with Codex 0.162.1 did not apply the definition to the named role.
 - Codex reads the project's `.codex/config.toml` only in a trusted project. Claude Code asks you to approve the servers in `.mcp.json`.
 - Repo URLs must be `git@<host>:<path>`, `ssh://git@<host>/<path>`, or `https://<host>/<path>`.

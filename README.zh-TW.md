@@ -199,9 +199,10 @@ hearth upgrade
 
 hearth 0.2.0 只讀 `schema_version = 2`（加了 skill 群組）。它的 `upgrade` 只在原地改兩個值：兩個設定檔的 `schema_version` 從 1 改成 2，`hearth.toml` 的 `min_hearth_version` 低於 `0.2.0` 時改成 `0.2.0`；註解、空行和 key 的順序都保留。升級後的 `hearth.toml` 走 PR 合併；還在用 0.1.0 的同事要先裝 0.2.0，每個人也要各跑一次 `hearth upgrade` 升自己的 `hearth.local.toml`。
 
+用 hearth 0.2.0 或更早的版本建的 Home Repo，檔案是繁體中文。`upgrade` 只會把 `AGENTS.md` 的標記區段換成英文，其他檔案不變；想要一致就自己翻。
+
 ## 已知限制
 
-- `hearth init` 寫出的檔案（`AGENTS.md`、Home Repo 的 README、workflows）是繁體中文。
 - Codex 的 subagent 還沒實測生效。`.codex/agents/<name>.toml` 照 Codex 官方文件產生，但 2026-11-18 用 Codex 0.162.1 試時，指名的角色沒有套用定義。
 - Codex 只在 trusted project 讀專案的 `.codex/config.toml`；Claude Code 會要求你核准 `.mcp.json` 裡的 server。
 - repo URL 只收 `git@<host>:<path>`、`ssh://git@<host>/<path>`、`https://<host>/<path>` 三種寫法。

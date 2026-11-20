@@ -6,16 +6,16 @@ confirmed:
 status: active
 ---
 
-# <慣例標題>
+# <Convention title>
 
-## 做法
+## Practice
 
-<!-- 團隊約定怎麼做，寫到讀的人可以照著做 -->
+<!-- How the team agreed to do it, written so a reader can follow it -->
 
-## 為什麼
+## Why
 
-<!-- 理由。來自事故時，只寫去識別化的一兩句經過；不貼原始 log、憑證、客戶資料 -->
+<!-- The reason. If it came from an incident, write only one or two de-identified sentences about what happened; do not paste raw logs, credentials, or customer data -->
 
-## 適用範圍
+## Scope
 
-<!-- 什麼情境適用，什麼情境不適用 -->
+<!-- Which situations it applies to, and which it does not -->
