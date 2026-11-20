@@ -15,7 +15,14 @@ import (
 	"github.com/CTHua/hearth/internal/tomlstr"
 )
 
-const filePerm fs.FileMode = 0o644
+const (
+	filePerm fs.FileMode = 0o644
+	// A group's subdirs are written one per line with a trailing comma.
+	groupArrayOpen    = " = [\n"
+	groupArrayIndent  = "  "
+	groupArrayItemEnd = ",\n"
+	groupArrayClose   = "]\n"
+)
 
 type schemaPart struct {
 	SchemaVersion int64 `toml:"schema_version"`
@@ -23,10 +30,6 @@ type schemaPart struct {
 
 type reposPart struct {
 	Repos []Repo `toml:"repos,omitempty"`
-}
-
-type skillsPart struct {
-	Skills []Skill `toml:"skills,omitempty"`
 }
 
 type personalPart struct {
@@ -61,7 +64,6 @@ func WriteTeam(root string, t Team) error {
 		part    any
 	}{
 		{len(t.Repos) > 0, reposPart{Repos: t.Repos}},
-		{len(t.Skills) > 0, skillsPart{Skills: t.Skills}},
 	}
 	for _, table := range tables {
 		if !table.present {
@@ -72,11 +74,36 @@ func WriteTeam(root string, t Team) error {
 			return apperr.New(apperr.Config, "cannot encode %s: %v", brand.TeamFile, err)
 		}
 	}
+	for _, skill := range t.Skills {
+		buf.WriteString("\n")
+		buf.WriteString(encodeSkill(skill))
+	}
 	for _, server := range t.MCP {
 		buf.WriteString("\n")
 		buf.WriteString(encodeMCP(server))
 	}
 	return writeFile(filepath.Join(root, brand.TeamFile), buf.Bytes())
+}
+
+// encodeSkill writes one [[skills]] table by hand: the encoder would put
+// every member of a group on one line, and a pull request that adds or
+// removes a member should change one line.
+func encodeSkill(s Skill) string {
+	var b strings.Builder
+	b.WriteString("[[" + keySkills + "]]\n")
+	b.WriteString(tomlstr.Line(FieldName, tomlstr.Quote(s.Name)))
+	b.WriteString(tomlstr.Line(FieldURL, tomlstr.Quote(s.URL)))
+	b.WriteString(tomlstr.Line(FieldCommit, tomlstr.Quote(s.Commit)))
+	if !s.IsGroup() {
+		b.WriteString(tomlstr.Line(FieldSubdir, tomlstr.Quote(s.Subdir)))
+		return b.String()
+	}
+	b.WriteString(FieldSubdirs + groupArrayOpen)
+	for _, subdir := range s.Subdirs {
+		b.WriteString(groupArrayIndent + tomlstr.Quote(subdir) + groupArrayItemEnd)
+	}
+	b.WriteString(groupArrayClose)
+	return b.String()
 }
 
 // encodeMCP writes one [[mcp]] table by hand: the encoder would sort

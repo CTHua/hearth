@@ -227,8 +227,19 @@ func (m *Model) rowText() string {
 	group, index := m.mineRow(row)
 	switch group {
 	case sectionSkills:
-		item := m.snap.skills[index]
-		if entry, found := team.FindSkill(item.Name); found && item.Source == skill.External {
+		line := m.skillLines()[index]
+		if line.skill < 0 {
+			if entry, found := team.FindSkill(line.group); found {
+				return entry.URL
+			}
+			return ""
+		}
+		item := m.snap.skills[line.skill]
+		entryName := item.Name
+		if item.Group != "" {
+			entryName = item.Group
+		}
+		if entry, found := team.FindSkill(entryName); found && item.Source == skill.External {
 			return entry.URL
 		}
 		return item.Detail

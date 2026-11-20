@@ -10,8 +10,8 @@
 | `internal/cli` | 子指令和參數解析（標準庫 `flag`）：解析旗標 → 呼叫 `internal/core` → 印結果；沒參數時開 TUI 或印 help |
 | `internal/core` | 每個使用者動作一個方法（repo、protocol、agent、skill、MCP、subagent、sync），吃已載入的 home、回傳結構化結果；`TeamChanges` 比較 `hearth.toml` 跟 HEAD；`core.Actions` 是 TUI 用的介面，測試換成假實作 |
 | `internal/tui` | Bubble Tea v2 的 TUI：Mine（個人檔，含 skill、MCP、subagent 的開關）和 team 組的 Repos、Skills、MCP（團隊檔）四個分頁、置中表單、`?` 快捷鍵表、滑鼠（點擊照 render 時記下的區域判斷）和 `y` 剪貼簿，只透過 `core.Actions` 動作；背景動作一次一個，各自可用 `ctrl+c` 取消 |
-| `internal/upgrade` | `hearth upgrade`：重寫標記區段、照遷移鏈升級設定檔的 `schema_version`；鏈和目標版本是參數 |
-| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`、`subagents`）的讀寫、驗證、版本 gate、根目錄搜尋 |
+| `internal/upgrade` | `hearth upgrade`：重寫標記區段、照遷移鏈升級設定檔的 `schema_version`；遷移是對檔案文字的替換，只改 `schema_version` 和 `min_hearth_version` 的值，其餘 byte 不動；鏈和目標版本是參數 |
+| `internal/config` | `hearth.toml`（`[[repos]]`、`[[skills]]`（單一 skill 用 `subdir`、群組用 `subdirs`）、`[[mcp]]`）、`hearth.local.toml`（`protocol`、`agents`、`skills`、`mcp`、`subagents`）的讀寫、驗證、版本 gate、根目錄搜尋；`Load` 只收目前的 `schema_version`，`ParseTeam`（讀 HEAD）也收 1 |
 | `internal/mcp` | 產生 `.mcp.json`、`.codex/config.toml`（格式只在這裡，黃金檔在 `testdata/`）、環境變數和 PATH 檢查 |
 | `internal/subagent` | 讀 `subagents/<name>.md`（YAML frontmatter 用 `yaml.Node` 保留順序）、驗證、轉成 `.claude/agents/<name>.md` 和 `.codex/agents/<name>.toml`（格式只在這裡，黃金檔在 `testdata/`；Codex 端還沒實測生效）、狀態、sync；擁有 state 裡 `.claude/agents/`、`.codex/agents/` 開頭的記錄 |
 | `internal/genfile` | `.hearth/state.json` 的讀寫、hash、手改判斷用的檔案和 symlink 檢查，`internal/mcp`、`internal/subagent` 共用；各自只改自己的記錄 |
@@ -20,7 +20,7 @@
 | `internal/gitx` | 拿掉繼承的 git local env vars 後執行 git |
 | `internal/checkout` | 只讀檢查一個 checkout 的狀態；路徑上的 symlink 檢查和 checkout root 檢查也給 `internal/skill` 用 |
 | `internal/clone` | clone 一個產品，或確認既有的 checkout |
-| `internal/skill` | skill 的三種來源、狀態、detached-commit 的安裝和換 pin、各 agent 的 link；內建 skill 的 `SKILL.md` 在 `internal/skill/builtin/`（go:embed） |
+| `internal/skill` | skill 的三種來源、群組成員的展開（一筆一個 checkout、成員各自檢查 `SKILL.md`）、狀態、detached-commit 的安裝和換 pin、各 agent 的 link、`skill add` 列遠端 skill（系統暫存目錄的 `git clone --no-checkout` 加 `git ls-tree`，只讀 `.claude-plugin/plugin.json` 一個 blob）；內建 skill 的 `SKILL.md` 在 `internal/skill/builtin/`（go:embed） |
 | `internal/dirswap` | 換掉非空目錄，中途失敗時把原本的搬回來 |
 | `internal/detect` | 用 `git ls-remote` 偵測 protocol |
 | `internal/scaffold` | `hearth init`、標記區段檢查，和標記區段跟模板的逐 byte 比對（`upgrade`、`doctor` 共用） |

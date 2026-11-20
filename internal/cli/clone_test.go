@@ -584,7 +584,7 @@ func TestCloneDetectsProtocolWhenUnset(t *testing.T) {
 	if !strings.Contains(r.stdout, "detected https") || !strings.Contains(r.stdout, "config protocol") {
 		t.Errorf("stdout lacks the result and how to change it: %s", r.stdout)
 	}
-	if got := read(t, localFile(home)); got != "schema_version = 1\nprotocol = \"https\"\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"https\"\n" {
 		t.Errorf("personal file %q", got)
 	}
 	if got := origin(t, product(home, "app")); got != httpsURL("app") {
@@ -614,7 +614,7 @@ func TestCloneWithProtocolSetDoesNotDetect(t *testing.T) {
 
 func TestInvalidPersonalFileFailsEvenWithEmptyList(t *testing.T) {
 	home := newHome(t)
-	for _, personal := range []string{"[github\n", "schema_version = 1\nprotocol = \"git\"\n", "schema_version = 1\ntoken = \"x\"\n", "schema_version = 1\nprotocol = 1\n"} {
+	for _, personal := range []string{"[github\n", "schema_version = 2\nprotocol = \"git\"\n", "schema_version = 2\ntoken = \"x\"\n", "schema_version = 2\nprotocol = 1\n"} {
 		write(t, localFile(home), personal)
 		r := run(t, "-C", home, "clone")
 		r.expect(t, exitBad, "error [config] "+brand.LocalFile)

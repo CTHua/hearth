@@ -61,6 +61,7 @@ const (
 	msgDone            = "done: %s"
 	msgConfirm         = "press d again to remove %s from %s; any other key keeps it"
 	msgBuiltin         = "the built-in skill is installed whenever an agent is chosen; it cannot be toggled"
+	msgGroupInvalid    = "no skill of group %s can be turned on; see each one's detail"
 	msgSubagentInvalid = "cannot enable: %s"
 	msgURLRequired     = "the URL is required"
 	msgFormClosed      = "closed the form; nothing was saved"
@@ -297,7 +298,7 @@ func (m *Model) busy() bool {
 func (m *Model) rowCount(t tab) int {
 	switch t {
 	case tabMine:
-		return optionCount + agentRows + len(m.snap.skills) + len(m.snap.servers) + len(m.snap.subagents)
+		return optionCount + agentRows + len(m.skillLines()) + len(m.snap.servers) + len(m.snap.subagents)
 	case tabRepos:
 		return len(m.snap.repos)
 	case tabSkills:

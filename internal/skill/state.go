@@ -53,8 +53,12 @@ func (s State) Failure() bool {
 
 // Row is one line of `skill list`. Source is empty for a stale choice.
 type Row struct {
-	Name    string
-	Source  Source
+	Name   string
+	Source Source
+	// Group is the group an external skill belongs to; empty when none.
+	Group string
+	// Invalid explains why the skill cannot be chosen; empty when it can.
+	Invalid string
 	Enabled bool
 	State   State
 	Detail  string
@@ -131,7 +135,7 @@ func Inspect(ctx context.Context, g *gitx.Git, home *config.Home, cat Catalog) (
 	sel := choose(home, cat)
 	var rows []Row
 	for _, item := range cat.items {
-		row := Row{Name: item.Name, Source: item.Source, Enabled: sel.wants(item), State: Disabled, Detail: item.Invalid}
+		row := Row{Name: item.Name, Source: item.Source, Group: item.Group, Invalid: item.Invalid, Enabled: sel.wants(item), State: Disabled, Detail: item.Invalid}
 		if row.Enabled {
 			result, err := inspectItem(ctx, g, home.Root, item, sel.dirs)
 			if err != nil {
@@ -155,7 +159,7 @@ func inspectItem(ctx context.Context, g *gitx.Git, root string, item Item, dirs 
 	result := finding{state: OK}
 	switch item.Source {
 	case External:
-		installed, err := externalState(ctx, g, root, item.Skill)
+		installed, err := externalState(ctx, g, root, item)
 		if err != nil {
 			return finding{}, err
 		}
@@ -169,8 +173,23 @@ func inspectItem(ctx context.Context, g *gitx.Git, root string, item Item, dirs 
 	return result, nil
 }
 
-// externalState checks the checkout of s without fetching.
-func externalState(ctx context.Context, g *gitx.Git, root string, s config.Skill) (finding, error) {
+// externalState checks the checkout of item's entry, then item's own
+// subdir in it, without fetching.
+func externalState(ctx context.Context, g *gitx.Git, root string, item Item) (finding, error) {
+	state, err := checkoutState(ctx, g, root, item.Skill)
+	if err != nil || state.state != OK {
+		return state, err
+	}
+	target := filepath.Join(root, filepath.FromSlash(VendorDir+pathSeparator+item.Skill.Name))
+	if e := verifySubdir(target, item.Name, item.Subdir, item.Skill.Commit); e != nil {
+		return finding{state: SkillInvalid, detail: e.Message}, nil
+	}
+	return finding{state: OK}, nil
+}
+
+// checkoutState checks the checkout of the entry s without fetching; one
+// checkout serves every member of a group.
+func checkoutState(ctx context.Context, g *gitx.Git, root string, s config.Skill) (finding, error) {
 	rel := VendorDir + pathSeparator + s.Name
 	if problem := dirProblem(root, rel); problem != "" {
 		return finding{state: PathConflict, detail: problem}, nil
@@ -189,9 +208,6 @@ func externalState(ctx context.Context, g *gitx.Git, root string, s config.Skill
 	}
 	if head != s.Commit || !detached {
 		return finding{state: PinMismatch, detail: pinDetail(rel, head, detached, s.Commit) + fmt.Sprintf("; run `%s skill sync`", brand.Name)}, nil
-	}
-	if e := verifySubdir(target, s); e != nil {
-		return finding{state: SkillInvalid, detail: e.Message}, nil
 	}
 	return finding{state: OK}, nil
 }

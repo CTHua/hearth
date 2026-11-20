@@ -166,7 +166,17 @@ func (f *fake) DisableSkills(names []string) ([]string, error) {
 }
 
 func (f *fake) AddSkill(_ context.Context, p core.AddSkillParams) (core.AddSkillResult, error) {
-	f.record("AddSkill %s name=%s subdir=%s commit=%s", p.URL, show(p.Name), show(p.Subdir), show(p.Commit))
+	subdir := nilValue
+	if len(p.Subdirs) > 0 {
+		subdir = strings.Join(p.Subdirs, ",")
+	}
+	f.record("AddSkill %s name=%s subdir=%s commit=%s", p.URL, show(p.Name), subdir, show(p.Commit))
+	if len(p.Subdirs) == 0 {
+		// Without a subdir the remote is listed; this one holds a group.
+		group := config.Skill{Name: "tools", URL: p.URL, Commit: "abc", Subdirs: []string{"skills/grilling", "skills/grill-me"}}
+		skipped := []core.SkippedSkill{{Dir: "extra/other", Reason: "not listed in " + skill.PluginFile}}
+		return core.AddSkillResult{Skill: group, Added: group.Subdirs, Listed: true, Found: 3, Skipped: skipped}, nil
+	}
 	return core.AddSkillResult{Skill: config.Skill{Name: "skills", Commit: "abc", Subdir: "."}}, nil
 }
 

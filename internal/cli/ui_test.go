@@ -56,7 +56,7 @@ func TestUIOutsideTerminalIsUsageError(t *testing.T) {
 
 func TestUIVersionGate(t *testing.T) {
 	home := newHome(t)
-	text := strings.Replace(read(t, teamFile(home)), "schema_version = 1", "schema_version = 2", 1)
+	text := strings.Replace(read(t, teamFile(home)), "schema_version = 2", "schema_version = 3", 1)
 	write(t, teamFile(home), text)
 	roots := cli.StubUI(t)
 	runInTerminal(t, "-C", home).expect(t, exitBad, "error [version]")

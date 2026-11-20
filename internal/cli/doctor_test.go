@@ -128,9 +128,9 @@ func TestDoctorSetupProblemsExitTwo(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, "-C", home, "doctor").expect(t, exitBad, "error [config] .gitignore")
-	write(t, teamFile(home), "schema_version = 2\n"+brand.MinVersionKey+" = \"0.1.0\"\n")
+	write(t, teamFile(home), "schema_version = 3\n"+brand.MinVersionKey+" = \"0.2.0\"\n")
 	run(t, "-C", home, "doctor").expect(t, exitBad, "error [version]")
-	write(t, teamFile(home), "schema_version = 1\n")
+	write(t, teamFile(home), "schema_version = 2\n")
 	run(t, "-C", home, "doctor").expect(t, exitBad, "error [config]")
 	run(t, "-C", t.TempDir(), "doctor").expect(t, exitBad, "error [config]")
 }
@@ -157,7 +157,7 @@ func TestVersionAndHelpPrintNoDevWarning(t *testing.T) {
 
 func TestEveryGatedCommandHonoursVersionGate(t *testing.T) {
 	home := newHome(t)
-	text := strings.Replace(read(t, teamFile(home)), "schema_version = 1", "schema_version = 2", 1)
+	text := strings.Replace(read(t, teamFile(home)), "schema_version = 2", "schema_version = 3", 1)
 	write(t, teamFile(home), text)
 	gated := [][]string{{"clone"}, {"repo", "fix-remote"}, {"doctor"}, {"repo", "list"}, {"config", "protocol", "ssh"}}
 	for _, args := range gated {

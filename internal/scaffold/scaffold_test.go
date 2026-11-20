@@ -130,7 +130,7 @@ func TestInitWritesTemplateTeamFileAndGitRepo(t *testing.T) {
 
 func TestInitTeamFileHasNoRepos(t *testing.T) {
 	dir := initHome(t)
-	want := brand.TeamFileHeader + "\nschema_version = 1\n" + brand.MinVersionKey + " = \"0.1.0\"\n"
+	want := brand.TeamFileHeader + "\nschema_version = 2\n" + brand.MinVersionKey + " = \"0.2.0\"\n"
 	if got := readFile(t, filepath.Join(dir, brand.TeamFile)); got != want {
 		t.Errorf("team file:\n%s\nwant:\n%s", got, want)
 	}

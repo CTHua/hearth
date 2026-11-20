@@ -182,7 +182,7 @@ func TestRepoAddWithoutProtocolOrBranchDetectsProtocol(t *testing.T) {
 	if !strings.Contains(r.stdout, "detected ssh") {
 		t.Errorf("stdout lacks the detection result: %s", r.stdout)
 	}
-	if got := read(t, localFile(home)); got != "schema_version = 1\nprotocol = \"ssh\"\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"ssh\"\n" {
 		t.Errorf("personal file %q", got)
 	}
 	if !strings.Contains(read(t, teamFile(home)), `branch = "trunk"`) {
@@ -400,7 +400,7 @@ func TestConfigProtocol(t *testing.T) {
 		t.Errorf("unset: %+v", r)
 	}
 	run(t, "-C", home, "config", "protocol", "ssh").expect(t, exitOK, "")
-	if got := read(t, localFile(home)); got != "schema_version = 1\nprotocol = \"ssh\"\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"ssh\"\n" {
 		t.Errorf("personal file %q", got)
 	}
 	r = run(t, "-C", home, "config", "protocol")
@@ -423,7 +423,7 @@ func TestConfigErrorsNameFileAndLocation(t *testing.T) {
 
 func TestVersionGateBlocksCommandsAndWrites(t *testing.T) {
 	home := newHome(t)
-	text := strings.Replace(read(t, teamFile(home)), "schema_version = 1", "schema_version = 2", 1)
+	text := strings.Replace(read(t, teamFile(home)), "schema_version = 2", "schema_version = 3", 1)
 	write(t, teamFile(home), text+"future = true\n")
 	for _, args := range [][]string{{"repo", "list"}, {"repo", "add", appHTTPS, "--branch", "main"}, {"repo", "remove", "app"}, {"config", "protocol", "ssh"}, {"config", "protocol"}} {
 		run(t, append([]string{"-C", home}, args...)...).expect(t, exitBad, "error [version]")
@@ -441,9 +441,9 @@ func TestVersionGateBlocksCommandsAndWrites(t *testing.T) {
 
 func TestVersionGateOnPersonalFile(t *testing.T) {
 	home := newHome(t)
-	write(t, localFile(home), "schema_version = 2\nprotocol = \"ssh\"\n")
+	write(t, localFile(home), "schema_version = 3\nprotocol = \"ssh\"\n")
 	run(t, "-C", home, "config", "protocol", "https").expect(t, exitBad, "error [version] "+brand.LocalFile)
-	if !strings.Contains(read(t, localFile(home)), "schema_version = 2") {
+	if !strings.Contains(read(t, localFile(home)), "schema_version = 3") {
 		t.Error("personal file rewritten")
 	}
 }

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	teamHeader = "schema_version = 1\n" + brand.MinVersionKey + " = \"0.1.0\"\n"
+	teamHeader = "schema_version = 2\n" + brand.MinVersionKey + " = \"0.2.0\"\n"
 	repoA      = "\n[[repos]]\nname = \"a\"\nurl = \"git@git.example.invalid:acme/a.git\"\npath = \"products/a\"\nbranch = \"main\"\n"
 	repoADev   = "\n[[repos]]\nname = \"a\"\nurl = \"git@git.example.invalid:acme/a.git\"\npath = \"products/a\"\nbranch = \"dev\"\n"
 	repoB      = "\n[[repos]]\nname = \"b\"\nurl = \"git@git.example.invalid:acme/b.git\"\npath = \"products/b\"\nbranch = \"main\"\n"
@@ -127,6 +127,23 @@ func TestTeamChangesDescriptionOnlyIsModified(t *testing.T) {
 		t.Fatalf("describe: %+v, %v", result, err)
 	}
 	expectChanges(t, s, []core.TeamChange{{Table: core.TableRepos, Name: "a", Kind: core.Modified}})
+}
+
+func groupSkillEntry(subdirs string) string {
+	return "\n[[skills]]\nname = \"kit\"\nurl = \"https://git.example.invalid/acme/kit.git\"\ncommit = \"0123456789abcdef0123456789abcdef01234567\"\nsubdirs = [" + subdirs + "]\n"
+}
+
+// A HEAD still at schema 1 is compared with an upgraded working file: the
+// version lines differ, but only the entries that changed are reported.
+func TestTeamChangesAgainstSchemaOneHead(t *testing.T) {
+	oldHeader := "schema_version = 1\n" + brand.MinVersionKey + " = \"0.1.0\"\n"
+	committed := oldHeader + repoA + repoB + pdfSkillEntry
+	current := teamHeader + repoA + repoB + pdfSkillEntry + groupSkillEntry(`"a/x", "a/y"`)
+	expectChanges(t, homeIn(t, "", true, committed, current), []core.TeamChange{{Table: core.TableSkills, Name: "kit", Kind: core.Added}})
+	committed = teamHeader + pdfSkillEntry + groupSkillEntry(`"a/x", "a/y"`)
+	current = teamHeader + pdfSkillEntry + groupSkillEntry(`"a/x", "a/z"`)
+	expectChanges(t, homeIn(t, "", true, committed, current), []core.TeamChange{{Table: core.TableSkills, Name: "kit", Kind: core.Modified}})
+	expectChanges(t, homeIn(t, "", true, committed, committed), nil)
 }
 
 const pdfSkillEntry = "\n[[skills]]\nname = \"pdf\"\nurl = \"https://git.example.invalid/acme/skills.git\"\ncommit = \"0123456789abcdef0123456789abcdef01234567\"\nsubdir = \"pdf\"\n"

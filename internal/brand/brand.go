@@ -30,6 +30,11 @@ const (
 	// it is renamed into place.
 	CloneTempPrefix = ".hearth-"
 
+	// ListTempPrefix prefixes the directory in the system's temporary
+	// directory that `skill add` clones into to list a remote's skills; it
+	// is removed before the command returns.
+	ListTempPrefix = "hearth-skill-list-"
+
 	// StateDir is the gitignored home-repo directory for files this tool
 	// generates, such as the built-in skill.
 	StateDir = ".hearth"

@@ -171,14 +171,26 @@ func assertSameTree(t *testing.T, before map[string]string, after map[string]str
 // listStatus returns the STATUS column of the skill list row for name.
 func listStatus(t *testing.T, home string, name string) string {
 	t.Helper()
+	return listColumn(t, home, name, listStatusColumn)
+}
+
+// Columns of `skill list`: NAME GROUP SOURCE ENABLED STATUS DETAIL.
+const (
+	listGroupColumn  = 1
+	listStatusColumn = 4
+)
+
+// listColumn returns one column of the skill list row for name.
+func listColumn(t *testing.T, home string, name string, column int) string {
+	t.Helper()
 	r := run(t, "-C", home, "skill", "list")
 	if r.code != exitOK {
 		t.Fatalf("skill list exit %d: %s", r.code, r.stderr)
 	}
 	for _, line := range lines(r.stdout) {
 		fields := strings.Fields(line)
-		if len(fields) >= 4 && fields[0] == name {
-			return fields[3]
+		if len(fields) > column && fields[0] == name {
+			return fields[column]
 		}
 	}
 	t.Fatalf("no row for %s:\n%s", name, r.stdout)
@@ -201,7 +213,7 @@ func TestSkillAddWithoutCommitPinsRemoteHead(t *testing.T) {
 	if !strings.HasSuffix(text, want) || strings.Index(text, "[[repos]]") > strings.Index(text, "[[skills]]") {
 		t.Errorf("team file:\n%s", text)
 	}
-	run(t, "-C", home, "skill", "add", skillHTTPS).expect(t, exitOK, "")
+	run(t, "-C", home, "skill", "add", skillHTTPS, "--subdir", ".").expect(t, exitOK, "")
 	if !strings.Contains(read(t, teamFile(home)), "name = \"skills\"\nurl = \""+skillHTTPS+"\"\ncommit = \""+r.newer+"\"\nsubdir = \".\"") {
 		t.Errorf("default name from URL:\n%s", read(t, teamFile(home)))
 	}
@@ -226,22 +238,22 @@ func TestSkillAddWithFullCommitDoesNotConnectOrDetect(t *testing.T) {
 func TestSkillAddRejectsBadValuesAndConflicts(t *testing.T) {
 	home := newHome(t)
 	pin := strings.Repeat("c", 40)
-	run(t, "-C", home, "skill", "add", skillHTTPS, "--name", "pdf", "--commit", pin).expect(t, exitOK, "")
+	run(t, "-C", home, "skill", "add", skillHTTPS, "--name", "pdf", "--subdir", ".", "--commit", pin).expect(t, exitOK, "")
 	if err := os.MkdirAll(at(home, "skills/notes"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	write(t, at(home, "skills/notes/SKILL.md"), skillV1)
 	before := read(t, teamFile(home))
 	cases := map[string][]string{
-		"short commit":               {"--name", "x", "--commit", "abc1234"},
-		"uppercase commit":           {"--name", "x", "--commit", strings.ToUpper(pin)},
-		"branch commit":              {"--name", "x", "--commit", "main"},
-		"reserved name":              {"--name", "Hearth", "--commit", pin},
-		"duplicate name":             {"--name", "PDF", "--commit", pin},
-		"team skill name":            {"--name", "Notes", "--commit", pin},
+		"short commit":               {"--name", "x", "--subdir", ".", "--commit", "abc1234"},
+		"uppercase commit":           {"--name", "x", "--subdir", ".", "--commit", strings.ToUpper(pin)},
+		"branch commit":              {"--name", "x", "--subdir", ".", "--commit", "main"},
+		"reserved name":              {"--name", "Hearth", "--subdir", ".", "--commit", pin},
+		"duplicate name":             {"--name", "PDF", "--subdir", ".", "--commit", pin},
+		"team skill name":            {"--name", "Notes", "--subdir", ".", "--commit", pin},
 		"escaping subdir":            {"--subdir", "../x", "--commit", pin},
 		"git subdir":                 {"--subdir", ".git", "--commit", pin},
-		"team name, no commit given": {"--name", "notes"},
+		"team name, no commit given": {"--name", "notes", "--subdir", "."},
 	}
 	for label, flags := range cases {
 		res := run(t, append([]string{"-C", home, "skill", "add", skillHTTPS}, flags...)...)
@@ -301,7 +313,7 @@ func TestPersonalCommandsKeepOtherKeys(t *testing.T) {
 	}
 	run(t, "-C", home, "config", "agents", "codex,claude,codex").expect(t, exitOK, "")
 	run(t, "-C", home, "skill", "enable", "NOTES", "demo").expect(t, exitOK, "")
-	want := "schema_version = 1\nprotocol = \"https\"\nagents = [\"codex\", \"claude\"]\nskills = [\"demo\", \"notes\"]\n"
+	want := "schema_version = 2\nprotocol = \"https\"\nagents = [\"codex\", \"claude\"]\nskills = [\"demo\", \"notes\"]\n"
 	if got := read(t, localFile(home)); got != want {
 		t.Errorf("personal file %q, want %q", got, want)
 	}
@@ -311,7 +323,7 @@ func TestPersonalCommandsKeepOtherKeys(t *testing.T) {
 	}
 	run(t, "-C", home, "config", "protocol", "ssh").expect(t, exitOK, "")
 	run(t, "-C", home, "config", "agents", "none").expect(t, exitOK, "")
-	want = "schema_version = 1\nprotocol = \"ssh\"\nskills = [\"demo\", \"notes\"]\n"
+	want = "schema_version = 2\nprotocol = \"ssh\"\nskills = [\"demo\", \"notes\"]\n"
 	if got := read(t, localFile(home)); got != want {
 		t.Errorf("after protocol and none: %q, want %q", got, want)
 	}
@@ -327,7 +339,7 @@ func TestPersonalCommandsKeepOtherKeys(t *testing.T) {
 		t.Errorf("enable does not list the choices: %s", res.stderr)
 	}
 	run(t, "-C", home, "skill", "disable", "Demo").expect(t, exitOK, "")
-	if got := read(t, localFile(home)); got != "schema_version = 1\nprotocol = \"ssh\"\nskills = [\"notes\"]\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"ssh\"\nskills = [\"notes\"]\n" {
 		t.Errorf("after disable: %q", got)
 	}
 	if read(t, teamFile(home)) != team {
@@ -795,7 +807,7 @@ func TestListAndDoctorNeitherConnectNorWrite(t *testing.T) {
 	run(t, "-C", home, "skill", "sync").expect(t, exitOK, "")
 	run(t, "-C", home, "skill", "update", "demo", "--commit", r.newer).expect(t, exitOK, "")
 	other := "https://git.example.invalid/acme/other.git"
-	run(t, "-C", home, "skill", "add", other, "--name", "other", "--commit", r.pinned).expect(t, exitOK, "")
+	run(t, "-C", home, "skill", "add", other, "--name", "other", "--subdir", ".", "--commit", r.pinned).expect(t, exitOK, "")
 	run(t, "-C", home, "skill", "enable", "other").expect(t, exitOK, "")
 	gittest.Redirect(t, other, filepath.Join(t.TempDir(), "missing.git"))
 	trace := filepath.Join(t.TempDir(), "trace")

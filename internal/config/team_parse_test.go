@@ -34,8 +34,8 @@ func TestParseTeamRejectsWhatLoadRejects(t *testing.T) {
 	}{
 		{"not toml", "schema_version = \n", apperr.Config},
 		{"unknown key", header + "extra = 1\n", apperr.Config},
-		{"newer schema", "schema_version = 2\n" + brand.MinVersionKey + " = \"0.1.0\"\nnew_key = true\n", apperr.Version},
-		{"missing schema", brand.MinVersionKey + " = \"0.1.0\"\n", apperr.Config},
+		{"newer schema", "schema_version = 3\n" + brand.MinVersionKey + " = \"0.2.0\"\nnew_key = true\n", apperr.Version},
+		{"missing schema", brand.MinVersionKey + " = \"0.2.0\"\n", apperr.Config},
 		{"bad repo name", header + "[[repos]]\nname = \"a b\"\nurl = \"git@git.example.invalid:acme/a.git\"\npath = \"products/a\"\nbranch = \"main\"\n", apperr.Config},
 	}
 	for _, c := range cases {
