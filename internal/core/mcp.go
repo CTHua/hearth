@@ -91,20 +91,28 @@ func (s *Service) SyncMCP(force bool, out Output) (mcp.Result, error) {
 	return result, failedExit(len(result.Failed))
 }
 
-// SyncResult is what the top-level sync did in each part.
+// SyncResult is what the top-level sync did in each part. Clone is Empty
+// when there was nothing to clone.
 type SyncResult struct {
+	Clone     BatchResult
 	Skills    BatchResult
 	MCP       mcp.Result
 	Subagents subagent.Result
 }
 
-// Sync runs the skill sync, then the MCP sync and the subagent sync
-// whatever the earlier parts' results, and ends with the worst exit code.
-// Each part's error is reported to out.Err as it ends, so the transcript
-// reads in order. force is for MCP and subagents. An interrupt stops the
-// run before MCP.
+// Sync clones the chosen repos that have no checkout yet, then runs the
+// skill sync, the MCP sync and the subagent sync whatever the earlier parts'
+// results, and ends with the worst exit code. Each part's error is reported
+// to out.Err as it ends, so the transcript reads in order. force is for MCP
+// and subagents. An interrupt stops the run before the next part.
 func (s *Service) Sync(ctx context.Context, force bool, out Output) (SyncResult, error) {
 	var result SyncResult
+	cloned, cloneErr := s.cloneMissing(ctx, out)
+	result.Clone = cloned
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
+	cloneCode := apperr.Report(out.Err, cloneErr)
 	skills, skillErr := s.SyncSkills(ctx, out)
 	result.Skills = skills
 	if ctx.Err() != nil {
@@ -117,7 +125,7 @@ func (s *Service) Sync(ctx context.Context, force bool, out Output) (SyncResult,
 	subagents, subagentErr := s.SyncSubagents(force, out)
 	result.Subagents = subagents
 	subagentCode := apperr.Report(out.Err, subagentErr)
-	code := max(skillCode, mcpCode, subagentCode)
+	code := max(cloneCode, skillCode, mcpCode, subagentCode)
 	if code == apperr.ExitOK {
 		return result, nil
 	}

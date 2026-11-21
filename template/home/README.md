@@ -18,7 +18,7 @@ The shared rules are in [`AGENTS.md`](AGENTS.md) and apply to both engineers and
 git clone <your Home Repo URL> home-repo
 cd home-repo
 hearth config protocol ssh   # or https; if unset, the first clone connects to detect it
-hearth clone                 # clones every product
+hearth clone                 # clones every chosen product (all of them until you choose)
 hearth repo list             # each product's status
 hearth doctor                # checks git, the config files, and every checkout
 ```
@@ -30,7 +30,7 @@ hearth doctor                # checks git, the config files, and every checkout
 | File | Who changes it | Version control |
 | --- | --- | --- |
 | `hearth.toml` | The team, through `hearth repo add` / `remove`, `hearth skill add` / `remove` / `update`, `hearth mcp add` / `remove`, then a PR | In version control |
-| `hearth.local.toml` | Each person, through `hearth config protocol`, `hearth config agents`, `hearth skill enable` / `disable`, `hearth mcp enable` / `disable`, `hearth subagent enable` / `disable` | Ignored by `.gitignore` |
+| `hearth.local.toml` | Each person, through `hearth config protocol`, `hearth config agents`, `hearth skill enable` / `disable`, `hearth mcp enable` / `disable`, `hearth subagent enable` / `disable`, and the repo switches on the Mine tab of the interactive UI | Ignored by `.gitignore` |
 
 The format of `hearth.toml`:
 
@@ -58,6 +58,20 @@ description = "Customer-facing web app"
 - The four fields `name`, `url`, `path`, `branch` are required, `description` is optional, and no other fields are allowed. `hearth doctor` reminds you about products without a `description`.
 - When `hearth` changes this file it rewrites the whole file, keeping only the comment on the first line; comments you add will disappear, so put explanations in the PR or in this README.
 - When `min_hearth_version` is newer than your `hearth`, or `schema_version` is newer than your `hearth` supports, commands report `version`, exit 2, and do nothing. Upgrade `hearth` to fix it.
+
+Which products each person clones is in `hearth.local.toml` (`schema_version = 3`):
+
+```toml
+schema_version = 3
+protocol = "ssh"
+repos = ["web-app"]
+```
+
+- Without a `repos` key, every product in `hearth.toml` is chosen. With the key, only the listed ones are, so a product the team adds later is not chosen until you add it; `repos = []` chooses none. A name that is no longer in `hearth.toml` counts as not chosen.
+- `hearth clone` with no names clones only the chosen products; `hearth clone <name>` clones that product whether or not it is chosen, and leaves the choice as it is.
+- `hearth sync` first clones each chosen product that has no checkout yet, then installs skills and writes the MCP and subagent files; a failed clone does not stop the rest, but the exit code is `1`. Products that are already cloned are left alone.
+- `hearth repo list` shows `not-selected` for a product that is neither chosen nor cloned; `hearth doctor` does not count it as a problem. Turning a product off does not delete its checkout.
+- In the interactive UI, `q` after changing a choice of agents, repos, skills, MCP servers, or subagents runs `hearth sync` once the UI closes; `ctrl+c` closes it without syncing.
 
 ## Adding and removing products
 
@@ -136,7 +150,7 @@ Personal choices in `hearth.local.toml`: `agents = ["claude", "codex"]`, `skills
 | `symlink-unavailable` | This file system cannot create symlinks; `hearth` does not fall back to copying | Use a location that supports symlinks |
 | `unknown` | A skill you have chosen has been removed; it is treated as not chosen | `hearth skill disable <name>` |
 
-`hearth sync` runs `hearth skill sync`, `hearth mcp sync`, `hearth subagent sync` in order, runs the later ones even when an earlier one fails, and takes the most severe exit code; `--force` goes to MCP and subagents.
+`hearth sync` first clones each chosen product that has no checkout yet, then runs `hearth skill sync`, `hearth mcp sync`, `hearth subagent sync` in order; it runs the later steps even when an earlier one fails, the clone included, and takes the most severe exit code; `--force` goes to MCP and subagents.
 
 ## MCP servers
 

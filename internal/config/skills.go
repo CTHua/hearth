@@ -409,7 +409,7 @@ func (p Personal) WithSkills(names []string) Personal {
 func (p Personal) started() Personal {
 	next := p
 	if next.SchemaVersion == 0 {
-		next.SchemaVersion = SchemaVersion
+		next.SchemaVersion = PersonalSchemaVersion
 	}
 	return next
 }

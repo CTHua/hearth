@@ -45,7 +45,7 @@ func home(t *testing.T, agents []string, names []string) *config.Home {
 	t.Helper()
 	h := &config.Home{
 		Root:     t.TempDir(),
-		Personal: config.Personal{SchemaVersion: config.SchemaVersion, Agents: agents, Subagents: names},
+		Personal: config.Personal{SchemaVersion: config.PersonalSchemaVersion, Agents: agents, Subagents: names},
 	}
 	write(t, path(h, subagent.SourceDir+"/reviewer.md"), source(t))
 	return h

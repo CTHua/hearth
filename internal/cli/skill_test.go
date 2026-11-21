@@ -313,7 +313,7 @@ func TestPersonalCommandsKeepOtherKeys(t *testing.T) {
 	}
 	run(t, "-C", home, "config", "agents", "codex,claude,codex").expect(t, exitOK, "")
 	run(t, "-C", home, "skill", "enable", "NOTES", "demo").expect(t, exitOK, "")
-	want := "schema_version = 2\nprotocol = \"https\"\nagents = [\"codex\", \"claude\"]\nskills = [\"demo\", \"notes\"]\n"
+	want := "schema_version = 3\nprotocol = \"https\"\nagents = [\"codex\", \"claude\"]\nskills = [\"demo\", \"notes\"]\n"
 	if got := read(t, localFile(home)); got != want {
 		t.Errorf("personal file %q, want %q", got, want)
 	}
@@ -323,7 +323,7 @@ func TestPersonalCommandsKeepOtherKeys(t *testing.T) {
 	}
 	run(t, "-C", home, "config", "protocol", "ssh").expect(t, exitOK, "")
 	run(t, "-C", home, "config", "agents", "none").expect(t, exitOK, "")
-	want = "schema_version = 2\nprotocol = \"ssh\"\nskills = [\"demo\", \"notes\"]\n"
+	want = "schema_version = 3\nprotocol = \"ssh\"\nskills = [\"demo\", \"notes\"]\n"
 	if got := read(t, localFile(home)); got != want {
 		t.Errorf("after protocol and none: %q, want %q", got, want)
 	}
@@ -339,7 +339,7 @@ func TestPersonalCommandsKeepOtherKeys(t *testing.T) {
 		t.Errorf("enable does not list the choices: %s", res.stderr)
 	}
 	run(t, "-C", home, "skill", "disable", "Demo").expect(t, exitOK, "")
-	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"ssh\"\nskills = [\"notes\"]\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 3\nprotocol = \"ssh\"\nskills = [\"notes\"]\n" {
 		t.Errorf("after disable: %q", got)
 	}
 	if read(t, teamFile(home)) != team {

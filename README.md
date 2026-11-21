@@ -98,7 +98,7 @@ hearth repo describe api-service "Orders API"
 git clone <your Home Repo URL> team-home
 cd team-home
 hearth config protocol ssh        # or https; leave it unset to detect on the first clone
-hearth clone                      # clones every product that is not cloned yet
+hearth clone                      # clones every chosen product that is not cloned yet
 hearth repo list
 ```
 
@@ -110,6 +110,14 @@ api-service  products/api-service  develop  ok              Orders API
 
 Each product is its own Git repo under `products/`. The Home Repo ignores that directory.
 
+You do not have to clone every product. `repos` in `hearth.local.toml` lists the ones you want; without that key every repo in `hearth.toml` counts as chosen. Once the key is there, a repo the team adds later is not chosen until you add it, and `repos = []` chooses none. The Mine tab of the terminal UI turns each repo on and off. `hearth clone` with no names clones only the chosen repos (`hearth clone <name>` clones that repo whether or not it is chosen), and `hearth repo list` shows `not-selected` for a repo that is neither chosen nor cloned. Turning a repo off never deletes its checkout.
+
+```toml
+schema_version = 3
+protocol = "ssh"
+repos = ["web-app"]
+```
+
 ### 3. Pick skills, MCP servers, and subagents
 
 ```sh
@@ -117,7 +125,7 @@ hearth config agents claude,codex
 hearth skill enable pdf
 hearth mcp enable docs
 hearth subagent enable reviewer
-hearth sync                       # installs skills, writes MCP config and subagent files
+hearth sync                       # clones chosen repos not cloned yet, installs skills, writes MCP config and subagent files
 hearth doctor                     # checks git, both config files, every checkout and every choice
 ```
 
@@ -130,9 +138,9 @@ hearth reads two files from the Home Repo root. It finds the root by walking up 
 | File | Holds | Who changes it | In Git |
 | --- | --- | --- | --- |
 | `hearth.toml` | product repos, external skills, MCP servers | the team, through a PR | yes |
-| `hearth.local.toml` | protocol, agents, enabled skills, MCP servers, subagents | each person | no |
+| `hearth.local.toml` | protocol, agents, chosen repos, enabled skills, MCP servers, subagents | each person | no |
 
-Team skills live in `skills/<name>/` and team subagents in `subagents/<name>.md`, both committed. `hearth sync` turns the enabled ones into files each agent reads:
+Team skills live in `skills/<name>/` and team subagents in `subagents/<name>.md`, both committed. `hearth sync` first clones each chosen repo that has no checkout yet, with the same lines as `hearth clone`; it leaves repos that are already cloned alone, and a failed clone does not stop the rest, though it makes the exit code `1`. Then it turns the enabled items into files each agent reads:
 
 | Item | Claude Code | Codex |
 | --- | --- | --- |
@@ -150,7 +158,8 @@ Start your agent from the Home Repo root. Claude Code started inside `products/<
 
 ![The Repos tab: each product with its branch and checkout status, and a + mark on the repo added since the last commit](docs/images/tui-repos.png)
 
-- **Mine** edits `hearth.local.toml`: protocol, agents, and a switch for each skill, MCP server, and subagent. `s` runs `hearth sync`.
+- **Mine** edits `hearth.local.toml`: protocol, agents, and a switch for each repo, skill, MCP server, and subagent. `s` runs `hearth sync`, which also clones the chosen repos. If you changed an agent, repo, skill, MCP server, or subagent and have not synced since, `q` closes the UI and runs `hearth sync` in the terminal, with the same output and exit code; `ctrl+c` closes it without syncing, and changing only the protocol does not count.
+- **Repos** shows `not-selected` for a repo you have not chosen and not cloned; `c` clones the chosen repos.
 - **Repos, Skills, MCP** edit `hearth.toml`. `a` adds, `d` twice removes. The header counts changes since `HEAD`, and changed rows carry `+` (added) or `~` (changed).
 - `?` lists every key. `y` copies the selected row's URL through OSC 52. `m` turns the mouse off so you can select text.
 
@@ -195,9 +204,11 @@ hearth upgrade --check            # lists what would change; exits 1 if anything
 hearth upgrade
 ```
 
-`upgrade` rewrites only the text between the `hearth:begin` and `hearth:end` markers in `AGENTS.md` and `.gitignore`, and moves both config files to the current `schema_version`. Everything outside the markers stays byte for byte the same. If a marker is missing, repeated, or out of order, it exits 2 and writes nothing.
+`upgrade` rewrites only the text between the `hearth:begin` and `hearth:end` markers in `AGENTS.md` and `.gitignore`, and moves each config file to its current `schema_version`. Everything outside the markers stays byte for byte the same. If a marker is missing, repeated, or out of order, it exits 2 and writes nothing.
 
 hearth 0.2.0 reads only `schema_version = 2`, which added skill groups. Its `upgrade` changes just two values in place: `schema_version` from 1 to 2 in both files, and `min_hearth_version` in `hearth.toml` to `0.2.0` when it is lower. Comments, blank lines and key order are kept. Commit the upgraded `hearth.toml` in a PR; teammates on 0.1.0 then need to install 0.2.0, and each person runs `hearth upgrade` once for their own `hearth.local.toml`.
+
+This version reads `hearth.toml` at `schema_version = 2`, as 0.2.0 does, and `hearth.local.toml` at `schema_version = 3`, which added `repos`. Its `upgrade` changes only the personal file's `schema_version` from 2 to 3 (from 1, it goes on to 3); `hearth.toml` and its `min_hearth_version` stay as they are, so teammates still on 0.2.0 can keep reading the team file. Without a `repos` key every repo is chosen, so the first `hearth sync` after upgrading clones every repo that is not cloned yet, which can take a while on a large team. To avoid that, turn repos off on the Mine tab, or write `repos = []` (or the list you want) in `hearth.local.toml`, before you sync. The `hearth clone` line in the marked section of `AGENTS.md` changed too, so `doctor` warns about that section until you run `upgrade`.
 
 A Home Repo created with hearth 0.2.0 or earlier has its files in Traditional Chinese. `upgrade` turns only the marked section of `AGENTS.md` into English; the other files stay as they are, so translate them yourself if you want them to match.
 

@@ -15,12 +15,17 @@ import (
 	"github.com/CTHua/hearth/internal/giturl"
 )
 
-// SchemaVersion is the newest schema_version this build reads and the one it
-// writes. Load reads only this one; older files go through `upgrade` first.
-const SchemaVersion = 2
+// TeamSchemaVersion is the newest team-file schema_version this build reads
+// and the one it writes. Load reads only this one; older files go through
+// `upgrade` first.
+const TeamSchemaVersion = 2
 
-// MinVersion is the lowest release that reads SchemaVersion; init writes it
-// regardless of which build runs init.
+// PersonalSchemaVersion is the same for the personal file. Schema 3 added
+// the repos key; the team file did not change, so it stays at 2.
+const PersonalSchemaVersion = 3
+
+// MinVersion is the lowest release that reads TeamSchemaVersion; init writes
+// it regardless of which build runs init.
 const MinVersion = "0.2.0"
 
 // Repo is one [[repos]] entry of the team file. Description is optional; it
@@ -73,6 +78,10 @@ type Personal struct {
 	// Subagents are the chosen subagent names; stale ones are treated the
 	// same way as stale skills.
 	Subagents []string
+	// Repos are the chosen repo names. Unlike the other lists, nil means the
+	// file has no repos key and every repo is chosen, while an empty, non-nil
+	// list chooses none. Stale names are treated as not chosen.
+	Repos []string
 }
 
 // Home is a loaded home repo.
@@ -86,7 +95,7 @@ type Home struct {
 
 // NewTeam is the team file init writes: no repos.
 func NewTeam() Team {
-	return Team{SchemaVersion: SchemaVersion, MinVersion: MinVersion}
+	return Team{SchemaVersion: TeamSchemaVersion, MinVersion: MinVersion}
 }
 
 // Find returns the repo called name.
@@ -199,9 +208,9 @@ func Load(root string, running string) (*Home, error) {
 		}
 	}
 	home := &Home{Root: root}
-	problems, warning := checkTeamVersions(teamDoc, running, SchemaVersion)
+	problems, warning := checkTeamVersions(teamDoc, running, TeamSchemaVersion)
 	if hasPersonal {
-		problems = append(problems, checkSchema(personalDoc, SchemaVersion)...)
+		problems = append(problems, checkSchema(personalDoc, PersonalSchemaVersion, PersonalSchemaVersion)...)
 	}
 	if warning != "" {
 		home.Warnings = append(home.Warnings, warning)

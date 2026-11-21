@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ func schemaOneHome(t *testing.T) string {
 	t.Helper()
 	home := newHome(t)
 	path := filepath.Join(home, brand.TeamFile)
-	current := "schema_version = " + strconv.Itoa(config.SchemaVersion)
+	current := "schema_version = " + strconv.Itoa(config.TeamSchemaVersion)
 	text := strings.Replace(read(t, path), current, "schema_version = 1", 1)
 	text = strings.Replace(text, "\""+config.MinVersion+"\"", "\"0.1.0\"", 1)
 	writeText(t, path, text)
@@ -101,10 +102,11 @@ func fakePlan(steps *[]string, failAt int64) upgrade.Plan {
 		return migrations
 	}
 	return upgrade.Plan{
-		Team:     chain("team"),
-		Personal: chain("personal"),
-		Target:   target,
-		Validate: func(string) error { return nil },
+		Team:           chain("team"),
+		Personal:       chain("personal"),
+		TeamTarget:     target,
+		PersonalTarget: target,
+		Validate:       func(string) error { return nil },
 	}
 }
 
@@ -206,7 +208,7 @@ func TestCheckWritesNothingAndMissingPersonalIsSkipped(t *testing.T) {
 
 func TestMissingStepIsConfigError(t *testing.T) {
 	home := schemaOneHome(t)
-	plan := upgrade.Plan{Target: 2, Validate: func(string) error { return nil }}
+	plan := upgrade.Plan{TeamTarget: 2, PersonalTarget: 2, Validate: func(string) error { return nil }}
 	_, err := upgrade.Run(home, plan, true)
 	if err == nil || !strings.Contains(err.Error(), "error [config]") {
 		t.Errorf("err %v", err)
@@ -271,13 +273,66 @@ func TestDefaultPlanRewritesOnlyTheVersionValues(t *testing.T) {
 			if got, want := read(t, teamPath), schemaOneTeam(c.wantSchema, c.wantMin); got != want {
 				t.Errorf("team file:\n%s\nwant:\n%s", got, want)
 			}
-			if got, want := read(t, personal), strings.Replace(personalBefore, "= 1 #", "= 2 #", 1); got != want {
+			if got, want := read(t, personal), strings.Replace(personalBefore, "= 1 #", "= 3 #", 1); got != want {
 				t.Errorf("personal file %q, want %q", got, want)
 			}
 			if changes, err := upgrade.Run(home, upgrade.Default(), false); err != nil || len(changes) != 0 {
 				t.Errorf("second run: %+v, %v", changes, err)
 			}
 		})
+	}
+}
+
+// A home already at team schema 2 with a schema 2 personal file: only the
+// personal file's schema value changes, and the team file keeps every byte.
+func TestDefaultPlanRaisesOnlyThePersonalFileFromTwo(t *testing.T) {
+	home := newHome(t)
+	teamPath := filepath.Join(home, brand.TeamFile)
+	personal := filepath.Join(home, brand.LocalFile)
+	team := read(t, teamPath)
+	personalBefore := "# mine\nschema_version = 2 # personal\nprotocol = \"ssh\"\n\nskills = [\"pdf\"]\n"
+	writeText(t, personal, personalBefore)
+	changes, err := upgrade.Run(home, upgrade.Default(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []upgrade.Change{{File: brand.LocalFile, Detail: "schema_version 2 -> 3"}}
+	if !slices.Equal(changes, want) {
+		t.Errorf("--check changes %+v, want %+v", changes, want)
+	}
+	if changes, err := upgrade.Run(home, upgrade.Default(), false); err != nil || !slices.Equal(changes, want) {
+		t.Errorf("changes %+v, %v", changes, err)
+	}
+	if got := read(t, teamPath); got != team {
+		t.Errorf("team file changed:\n%s\nwant:\n%s", got, team)
+	}
+	if got, want := read(t, personal), strings.Replace(personalBefore, "= 2 #", "= 3 #", 1); got != want {
+		t.Errorf("personal file %q, want %q", got, want)
+	}
+	if _, err := config.Load(home, "0.2.0"); err != nil {
+		t.Errorf("load after upgrade: %v", err)
+	}
+	if changes, err := upgrade.Run(home, upgrade.Default(), true); err != nil || len(changes) != 0 {
+		t.Errorf("--check at team 2, personal 3: %+v, %v", changes, err)
+	}
+}
+
+// A home at team schema 1 and personal schema 1 ends at 2 and 3, and loads.
+func TestDefaultPlanTakesEachFileToItsOwnTarget(t *testing.T) {
+	home := schemaOneHome(t)
+	personal := filepath.Join(home, brand.LocalFile)
+	writeText(t, personal, personalText)
+	if _, err := upgrade.Run(home, upgrade.Default(), false); err != nil {
+		t.Fatal(err)
+	}
+	if got := schemaOf(t, filepath.Join(home, brand.TeamFile)); got != config.TeamSchemaVersion {
+		t.Errorf("team schema_version %d", got)
+	}
+	if got := schemaOf(t, personal); got != config.PersonalSchemaVersion {
+		t.Errorf("personal schema_version %d", got)
+	}
+	if _, err := config.Load(home, "0.2.0"); err != nil {
+		t.Errorf("load after upgrade: %v", err)
 	}
 }
 
@@ -321,7 +376,7 @@ func TestDefaultPlanKeepsCRLFLineEnds(t *testing.T) {
 	if got, want := read(t, teamPath), teamLines("2", config.MinVersion); got != want {
 		t.Errorf("team file %q, want %q", got, want)
 	}
-	if got, want := read(t, personal), personalLines("2"); got != want {
+	if got, want := read(t, personal), personalLines("3"); got != want {
 		t.Errorf("personal file %q, want %q", got, want)
 	}
 }

@@ -332,7 +332,8 @@ func TestStatesHaveSymbolsAndWords(t *testing.T) {
 	f.repos[0].Status.State = checkout.PathConflict
 	f.repos[1].Status.State = checkout.RemoteMismatch
 	f.servers[1].MissingEnv = []string{"TRACKER_TOKEN"}
-	m := newModel(f)
+	// Tall enough for the server rows, under Mine's repo rows.
+	m := tallModel(f)
 	expectScreen(t, m, "✓ ok", "○ disabled", "○ off", "! env-missing")
 	selected := false
 	for _, line := range strings.Split(m.View().Content, "\n") {
@@ -375,8 +376,8 @@ func TestHelpLineHasTheTabsKeys(t *testing.T) {
 		want []string
 		not  string
 	}{
-		{"1", []string{"space use", "s sync"}, "a add"},
-		{"2", []string{"a add", "d remove", "c clone all", "f fix remote"}, "space"},
+		{"1", []string{"space use", "s clone + sync"}, "a add"},
+		{"2", []string{"a add", "d remove", "c clone chosen", "f fix remote"}, "space"},
 		{"3", []string{"a add", "d remove", "u update pin"}, "clone"},
 		{"4", []string{"a add", "d remove"}, "update"},
 	}

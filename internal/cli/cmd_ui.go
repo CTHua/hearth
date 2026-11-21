@@ -33,7 +33,7 @@ func runDefault(ctx context.Context, s streams, g globals) error {
 	if err != nil {
 		return err
 	}
-	return openUI(ctx, home)
+	return showUI(ctx, s, home)
 }
 
 // isNoRoot reports whether the root search ended without a team file; a
@@ -63,11 +63,25 @@ func runUI(ctx context.Context, s streams, g globals, args []string) error {
 	if err != nil {
 		return err
 	}
-	return openUI(ctx, home)
+	return showUI(ctx, s, home)
 }
 
-// openUI runs the terminal UI on a home repo that passed the version gate.
+// showUI runs the terminal UI on a home repo that passed the version gate.
+// When the user quit with choices saved but not synced, it then syncs as
+// `sync` does, printing to the terminal the UI has left; the exit code is
+// that sync's.
+func showUI(ctx context.Context, s streams, home *config.Home) error {
+	actions := core.New(home)
+	syncOnQuit, err := openUI(ctx, actions)
+	if err != nil || !syncOnQuit {
+		return err
+	}
+	_, err = actions.Sync(ctx, false, s.output())
+	return err
+}
+
+// openUI runs the terminal UI and reports whether to sync after it.
 // Tests swap it through export_test.go, since the real UI needs a terminal.
-var openUI = func(ctx context.Context, home *config.Home) error {
-	return tui.Run(ctx, core.New(home))
+var openUI = func(ctx context.Context, actions core.Actions) (bool, error) {
+	return tui.Run(ctx, actions)
 }

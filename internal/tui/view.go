@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/CTHua/hearth/internal/brand"
+	"github.com/CTHua/hearth/internal/checkout"
 	"github.com/CTHua/hearth/internal/config"
 	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/giturl"
@@ -41,15 +42,19 @@ const (
 	// memberIndent puts a group's skills under its title row.
 	memberIndent = "  "
 	// groupSize is a group's SUBDIR cell on the Skills tab.
-	groupSize    = "group of %d"
-	radioOn      = "(•)"
-	radioOff     = "( )"
-	columnGap    = "  "
-	hintGap      = "  "
-	listSep      = ", "
-	argSep       = " "
-	staleSource  = "-"
-	notSet       = "not set"
+	groupSize   = "group of %d"
+	radioOn     = "(•)"
+	radioOff    = "( )"
+	columnGap   = "  "
+	hintGap     = "  "
+	listSep     = ", "
+	argSep      = " "
+	staleSource = "-"
+	notSet      = "not set"
+	// repoToClone and repoKept are the detail of a Mine repo row whose
+	// checkout does not match its choice yet.
+	repoToClone  = "cloned by the next sync"
+	repoKept     = "not chosen; the checkout is kept"
 	tabGap       = "   "
 	narrowTabGap = "  "
 	// minSpread is the fewest spaces between the two sides of a line.
@@ -515,12 +520,14 @@ func (m *Model) mineLines(b *rows) {
 	skillHeader := []string{"", "SKILL", "SOURCE", "STATUS", "DETAIL"}
 	serverHeader := []string{"", "MCP SERVER", "TRANSPORT", "STATUS", "DETAIL"}
 	subagentHeader := []string{"", "SUBAGENT", "", "STATUS", "DETAIL"}
+	repoHeader := []string{"", "REPO", "PATH", "STATUS", "DETAIL"}
+	repoCells := m.mineRepoCells()
 	skillCells := m.skillCells()
 	serverCells := m.serverCells()
 	subagentCells := m.subagentCells()
 	// One set of widths keeps the tables' columns aligned; the server
 	// header is the widest.
-	widths := columnWidths(serverHeader, skillCells, serverCells, subagentCells)
+	widths := columnWidths(serverHeader, repoCells, skillCells, serverCells, subagentCells)
 	personal := m.snap.home.Personal
 	protocol := personal.Protocol
 	if protocol == "" {
@@ -538,6 +545,16 @@ func (m *Model) mineLines(b *rows) {
 	b.header([]string{"", "AGENTS"}, widths)
 	for _, agent := range config.Agents() {
 		b.item([]cell{box(slices.Contains(personal.Agents, agent)), {agent, nil}}, widths)
+	}
+	b.text("")
+	b.header(repoHeader, widths)
+	for _, cells := range repoCells {
+		b.item(cells, widths)
+	}
+	// Only an empty team file gets this line; when listing the repos fails,
+	// the problems say why.
+	if len(m.snap.home.Team.Repos) == 0 {
+		b.text(gutter + muted.Render(fmt.Sprintf("   no repos in %s; add one on the %s tab", brand.TeamFile, tabNames[tabRepos])))
 	}
 	b.text("")
 	b.header(skillHeader, widths)
@@ -563,6 +580,24 @@ func (m *Model) mineLines(b *rows) {
 	if len(subagentCells) == 0 {
 		b.text(gutter + muted.Render(fmt.Sprintf("   no subagents; the team adds one as %s/<name>.md", subagent.SourceDir)))
 	}
+}
+
+// mineRepoCells are Mine's repo rows: whether the repo is chosen, and its
+// checkout. A chosen repo that is not cloned is cloned by the next sync; one
+// that is not chosen keeps its checkout.
+func (m *Model) mineRepoCells() [][]cell {
+	var cells [][]cell
+	for _, row := range m.snap.repos {
+		detail := row.Status.Detail
+		switch {
+		case row.Chosen && row.Status.State == checkout.Missing:
+			detail = repoToClone
+		case !row.Chosen && row.Status.State != checkout.Missing:
+			detail = repoKept
+		}
+		cells = append(cells, []cell{box(row.Chosen), {row.Repo.Name, nil}, {row.Repo.Path, colorMuted}, statusCell(row.StatusLabel()), {detail, colorMuted}})
+	}
+	return cells
 }
 
 func (m *Model) subagentCells() [][]cell {
@@ -666,7 +701,7 @@ func (m *Model) reposLines(b *rows) {
 	header := []string{"", "NAME", "BRANCH", "STATUS", "DETAIL"}
 	var cells [][]cell
 	for _, row := range m.snap.repos {
-		cells = append(cells, []cell{m.changeCell(core.TableRepos, row.Repo.Name), {row.Repo.Name, nil}, {row.Repo.Branch, colorMuted}, statusCell(string(row.Status.State)), {row.Status.Detail, colorMuted}})
+		cells = append(cells, []cell{m.changeCell(core.TableRepos, row.Repo.Name), {row.Repo.Name, nil}, {row.Repo.Branch, colorMuted}, statusCell(row.StatusLabel()), {row.Status.Detail, colorMuted}})
 	}
 	m.teamTable(b, header, cells)
 }

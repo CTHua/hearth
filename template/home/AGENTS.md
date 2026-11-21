@@ -6,7 +6,7 @@ This file holds the shared rules for engineers and AI coding agents working in t
 <!-- hearth:begin -->
 ## hearth (hearth manages this section; later versions rewrite all of it)
 - Install: `go install github.com/CTHua/hearth/cmd/hearth@latest`; for other ways see https://github.com/CTHua/hearth . After upgrading hearth, run `hearth upgrade` to update this section and the marked section of `.gitignore`.
-- Clone all products: `hearth clone`; see each product's status: `hearth repo list`; check the environment and config: `hearth doctor`; running `hearth` with no arguments in a terminal opens the interactive UI for the user; agents must not run it.
+- Clone the products chosen in `hearth.local.toml` (every product when it has no `repos` key): `hearth clone`; clone one product: `hearth clone <name>`; see each product's status: `hearth repo list`; check the environment and config: `hearth doctor`; running `hearth` with no arguments in a terminal opens the interactive UI for the user; agents must not run it.
 - The product list is in `hearth.toml`, and each product's `description` says what it does. To add or remove a product or change a `description`, ask the user to run `hearth repo add <url> [--description <text>]` / `hearth repo remove <name>` / `hearth repo describe <name> <text>` themselves; do not edit `hearth.toml` by hand; the agent's sandbox may block the write.
 - Each person's ssh/https choice is in `hearth.local.toml` (not in version control); view or set it with `hearth config protocol`.
 - Skills, MCP servers, and subagents: the team list uses `hearth skill add <url>` / `remove <name>` and `hearth mcp add <name>` / `remove <name>`; subagents are `subagents/<name>.md` files, changed through PRs; personal choices use `hearth skill enable` / `disable <name>`, `hearth mcp enable` / `disable <name>`, `hearth subagent enable` / `disable <name>`, `hearth config agents`, and then the user runs `hearth sync`; `hearth skill list`, `hearth mcp list`, `hearth subagent list` show the status.
@@ -24,7 +24,7 @@ Product code is not here. Each product is its own Git repo, cloned into `product
 | --- | --- | --- |
 | `README.md` | Requirements, quick start, `hearth` commands, and error handling | First-time setup, or when `hearth` fails |
 | `hearth.toml` | The product repo list (`[[repos]]`, with `description` saying what each product does) and external skills pinned to a commit (`[[skills]]`) | To decide which product a task belongs to, or to find a product repo or external skill |
-| `hearth.local.toml` | Personal settings: `protocol` (`ssh` or `https`), `agents`, `skills`, `mcp`, `subagents`. Not in version control | To know which protocol the user clones with and which skills, MCP servers, and subagents they picked |
+| `hearth.local.toml` | Personal settings: `protocol` (`ssh` or `https`), `agents`, `repos`, `skills`, `mcp`, `subagents`. Not in version control | To know which protocol the user clones with and which repos, skills, MCP servers, and subagents they picked |
 | `products/` | Checkouts of the product repos, at each product's `path` in `hearth.toml`. Not in the Home Repo's version control | The product the task names |
 | `memory/decisions/` | Confirmed cross-product decisions | The task involves cross-product design or trade-offs |
 | `memory/conventions/` | The team's habits and conventions | Before starting, to confirm the way the team agreed on |
@@ -90,7 +90,7 @@ For details, see "Model settings" in `agents/README.md`.
 
 ## Personal settings
 
-- `hearth.local.toml` is each person's own settings. Do not create or change it for the user; when the protocol, agents, or skill, MCP, or subagent choices need to change, ask the user to run `hearth config protocol <ssh|https>`, `hearth config agents <claude,codex|none>`, `hearth skill enable` / `disable <name>`, `hearth mcp enable` / `disable <name>`, `hearth subagent enable` / `disable <name>` themselves.
+- `hearth.local.toml` is each person's own settings. Do not create or change it for the user; when the protocol, agents, or skill, MCP, or subagent choices need to change, ask the user to run `hearth config protocol <ssh|https>`, `hearth config agents <claude,codex|none>`, `hearth skill enable` / `disable <name>`, `hearth mcp enable` / `disable <name>`, `hearth subagent enable` / `disable <name>` themselves; repos are chosen by the user on the Mine tab of the interactive UI.
 - Skills the team writes go in `skills/`; external skills are pinned to a commit with `hearth skill add` and not copied into the repo.
 - `hearth sync` writes to places such as `.agents/`, `.claude/skills/`, `.claude/agents/`, `.mcp.json`, and `.codex/`, which the agent's sandbox may block; when it is blocked, ask the user to run it themselves.
 - MCP server secrets are expressed only as environment variable names; do not write token or header values into any file.

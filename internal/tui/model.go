@@ -134,8 +134,11 @@ type job struct {
 type jobFunc func(ctx context.Context, out core.Output) (lines []string, teamChanged bool, err error)
 
 type jobDoneMsg struct {
-	lines []string
-	snap  snapshot
+	label string
+	// failed is set when the action returned an error.
+	failed bool
+	lines  []string
+	snap   snapshot
 }
 
 // Model is the Bubble Tea model of the UI.
@@ -153,6 +156,11 @@ type Model struct {
 	job           *job
 	messages      []string
 	quitting      bool
+	// unsynced is set once a choice of what to sync is saved, and cleared
+	// when a sync succeeds.
+	unsynced bool
+	// syncOnQuit is what the UI left with: q with unsynced choices.
+	syncOnQuit bool
 	// mouseOff gives the mouse back to the terminal, to select text.
 	mouseOff bool
 	// hover is where the mouse last moved; hovering is false until it does.
@@ -168,15 +176,33 @@ func New(ctx context.Context, actions core.Actions) *Model {
 	return &Model{ctx: ctx, actions: actions, snap: load(ctx, actions), width: defaultWidth, height: defaultHeight}
 }
 
-// Run shows the UI until the user quits.
-func Run(ctx context.Context, actions core.Actions) error {
+// Run shows the UI until the user quits. It reports what SyncOnQuit
+// reports: whether the caller should sync now that the UI is gone.
+func Run(ctx context.Context, actions core.Actions) (bool, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	_, err := tea.NewProgram(New(ctx, actions)).Run()
+	model := New(ctx, actions)
+	_, err := tea.NewProgram(model).Run()
+	return model.Finish(err)
+}
+
+// Finish is what Run returns once the program ended with err: SyncOnQuit
+// after a clean end, and no sync after an interrupt or a failure.
+func (m *Model) Finish(err error) (bool, error) {
 	if errors.Is(err, tea.ErrInterrupted) {
-		return context.Canceled
+		return false, context.Canceled
 	}
-	return err
+	if err != nil {
+		return false, err
+	}
+	return m.SyncOnQuit(), nil
+}
+
+// SyncOnQuit reports whether the user left with q after saving a choice of
+// agents, repos, skills, MCP servers or subagents that no sync has followed
+// yet; leaving with ctrl+c never asks for a sync.
+func (m *Model) SyncOnQuit() bool {
+	return m.syncOnQuit
 }
 
 // Init starts nothing: New already loaded the state.
@@ -192,6 +218,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case jobDoneMsg:
 		m.job = nil
+		if msg.label == jobSync && !msg.failed {
+			m.unsynced = false
+		}
 		m.snap = msg.snap
 		m.messages = msg.lines
 		m.clampCursors()
@@ -236,6 +265,7 @@ func (m *Model) key(msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		m.quitting = true
+		m.syncOnQuit = m.unsynced
 		return tea.Quit
 	case key.Matches(msg, keys.NextTab):
 		m.tab = (m.tab + 1) % tabCount
@@ -277,6 +307,7 @@ func (m *Model) dropQuestion() string {
 func (m *Model) interrupt() tea.Cmd {
 	if m.job == nil {
 		m.quitting = true
+		m.syncOnQuit = false
 		return tea.Quit
 	}
 	m.job.cancel()
@@ -298,7 +329,7 @@ func (m *Model) busy() bool {
 func (m *Model) rowCount(t tab) int {
 	switch t {
 	case tabMine:
-		return optionCount + agentRows + len(m.skillLines()) + len(m.snap.servers) + len(m.snap.subagents)
+		return optionCount + agentRows + len(m.snap.repos) + len(m.skillLines()) + len(m.snap.servers) + len(m.snap.subagents)
 	case tabRepos:
 		return len(m.snap.repos)
 	case tabSkills:
@@ -376,7 +407,7 @@ func (m *Model) start(label string, run jobFunc) tea.Cmd {
 		if len(messages) == 0 {
 			messages = []string{fmt.Sprintf(msgDone, label)}
 		}
-		return jobDoneMsg{lines: messages, snap: load(parent, actions)}
+		return jobDoneMsg{label: label, failed: err != nil, lines: messages, snap: load(parent, actions)}
 	}
 }
 

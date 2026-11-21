@@ -9,6 +9,8 @@ import (
 
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/cli"
+	"github.com/CTHua/hearth/internal/core"
+	"github.com/CTHua/hearth/internal/gittest"
 	"github.com/CTHua/hearth/internal/version"
 )
 
@@ -76,6 +78,47 @@ func TestUIMinVersionGate(t *testing.T) {
 	runInTerminal(t, "-C", home, "ui").expect(t, exitBad, "error [version]")
 	if len(*roots) > 0 {
 		t.Errorf("UI opened past the version gate: %v", *roots)
+	}
+}
+
+func TestUIQuitWithUnsyncedChoicesSyncsAfterTheUI(t *testing.T) {
+	home := homeWith(t, simple(t, "a", "b")...)
+	choose(t, home, `repos = ["a"]`)
+	roots := cli.StubUIQuit(t, true)
+	r := runInTerminal(t, "-C", home)
+	r.expect(t, exitOK, "")
+	want := "cloned a -> products/a (main)\n" + core.SummaryPrefix + "1 cloned, 0 skipped, 0 failed\n"
+	if !strings.HasPrefix(r.stdout, want) || !strings.Contains(r.stdout[len(want):], skillSummary) {
+		t.Errorf("stdout is not the sync output:\n%s", r.stdout)
+	}
+	if !exists(product(home, "a")) || exists(product(home, "b")) {
+		t.Error("the sync after the UI cloned the wrong repos")
+	}
+	if want := []string{home}; !slices.Equal(*roots, want) {
+		t.Errorf("UI opened on %v, want %v", *roots, want)
+	}
+}
+
+func TestUIQuitSyncFailureIsTheExitCode(t *testing.T) {
+	home := newHome(t)
+	gittest.Redirect(t, httpsURL("bad"), filepath.Join(t.TempDir(), "missing.git"))
+	run(t, "-C", home, "repo", "add", httpsURL("bad"), "--branch", "main").expect(t, exitOK, "")
+	run(t, "-C", home, "config", "protocol", "https").expect(t, exitOK, "")
+	cli.StubUIQuit(t, true)
+	r := runInTerminal(t, "-C", home, "ui")
+	r.expect(t, exitFailed, "bad")
+	if !strings.Contains(r.stdout, "0 cloned, 0 skipped, 1 failed") {
+		t.Errorf("stdout:\n%s", r.stdout)
+	}
+}
+
+func TestUIQuitWithoutChoicesDoesNotSync(t *testing.T) {
+	home := homeWith(t, simple(t, "a")...)
+	cli.StubUIQuit(t, false)
+	r := runInTerminal(t, "-C", home)
+	r.expect(t, exitOK, "")
+	if r.stdout != "" || exists(product(home, "a")) {
+		t.Errorf("the UI quit without a sync request, yet sync ran:\n%s", r.stdout)
 	}
 }
 

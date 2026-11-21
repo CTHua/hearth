@@ -178,7 +178,7 @@ func runRepoList(ctx context.Context, s streams, g globals, args []string) error
 	fmt.Fprintln(table, "NAME\tPATH\tBRANCH\tSTATUS\tDETAIL\tDESCRIPTION")
 	for _, row := range rows {
 		repo := row.Repo
-		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", repo.Name, repo.Path, repo.Branch, row.Status.State, row.Status.Detail, repo.Description)
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", repo.Name, repo.Path, repo.Branch, row.StatusLabel(), row.Status.Detail, repo.Description)
 	}
 	return table.Flush()
 }
