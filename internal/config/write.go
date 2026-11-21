@@ -32,13 +32,19 @@ type reposPart struct {
 	Repos []Repo `toml:"repos,omitempty"`
 }
 
-type personalPart struct {
+// personalHead and personalTail are the personal file's keys before and
+// after repos. Repos is written by hand between them: omitempty would drop
+// `repos = []`, and without it a nil list would be written as one.
+type personalHead struct {
 	SchemaVersion int64    `toml:"schema_version"`
 	Protocol      string   `toml:"protocol,omitempty"`
 	Agents        []string `toml:"agents,omitempty"`
-	Skills        []string `toml:"skills,omitempty"`
-	MCP           []string `toml:"mcp,omitempty"`
-	Subagents     []string `toml:"subagents,omitempty"`
+}
+
+type personalTail struct {
+	Skills    []string `toml:"skills,omitempty"`
+	MCP       []string `toml:"mcp,omitempty"`
+	Subagents []string `toml:"subagents,omitempty"`
 }
 
 // WriteTeam replaces the whole team file under root. Only the fixed header
@@ -144,11 +150,17 @@ func HeaderPairs(headers []HeaderEnv) [][2]string {
 }
 
 // WritePersonal replaces the personal file under root with every key of p,
-// so a command that changes one key keeps the others.
+// so a command that changes one key keeps the others. The repos key is
+// written only when p.Repos is non-nil, even when it is empty.
 func WritePersonal(root string, p Personal) error {
 	var buf bytes.Buffer
-	part := personalPart{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents, Skills: p.Skills, MCP: p.MCP, Subagents: p.Subagents}
-	if err := encode(&buf, part); err != nil {
+	if err := encode(&buf, personalHead{SchemaVersion: p.SchemaVersion, Protocol: p.Protocol, Agents: p.Agents}); err != nil {
+		return apperr.New(apperr.Config, "cannot encode %s: %v", brand.LocalFile, err)
+	}
+	if p.Repos != nil {
+		buf.WriteString(tomlstr.Line(keyRepos, tomlstr.Array(p.Repos)))
+	}
+	if err := encode(&buf, personalTail{Skills: p.Skills, MCP: p.MCP, Subagents: p.Subagents}); err != nil {
 		return apperr.New(apperr.Config, "cannot encode %s: %v", brand.LocalFile, err)
 	}
 	return writeFile(filepath.Join(root, brand.LocalFile), buf.Bytes())

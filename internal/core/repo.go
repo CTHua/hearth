@@ -258,10 +258,30 @@ func unknownNames(names []string, team config.Team) error {
 	return apperr.New(apperr.Usage, "unknown repo name(s): %s; available: %s", strings.Join(names, ", "), LabelList(team.Names()))
 }
 
-// RepoRow is one repo and the state of its checkout.
+// NotSelectedLabel is the status shown for a repo the personal file does
+// not choose and that has no checkout.
+const NotSelectedLabel = "not-selected"
+
+// RepoRow is one repo, the state of its checkout, and whether the personal
+// file chooses it.
 type RepoRow struct {
 	Repo   config.Repo
 	Status checkout.Status
+	Chosen bool
+}
+
+// NotSelected reports whether the repo is not chosen and not cloned; a repo
+// that is not chosen but cloned is shown and checked like any other.
+func (r RepoRow) NotSelected() bool {
+	return !r.Chosen && r.Status.State == checkout.Missing
+}
+
+// StatusLabel is the status to show: NotSelectedLabel, or the checkout state.
+func (r RepoRow) StatusLabel() string {
+	if r.NotSelected() {
+		return NotSelectedLabel
+	}
+	return string(r.Status.State)
 }
 
 // ListRepos inspects every checkout; it only reads. With no repos it needs
@@ -284,19 +304,17 @@ func (s *Service) ListRepos(ctx context.Context) ([]RepoRow, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, RepoRow{Repo: repo, Status: status})
+		rows = append(rows, RepoRow{Repo: repo, Status: status, Chosen: s.home.Personal.RepoChosen(repo.Name)})
 	}
 	return rows, nil
 }
 
-// Clone clones the named repos, or every repo when names is empty, that
-// are not cloned yet. One repo failing does not stop the others.
+// Clone clones the named repos, or every chosen repo when names is empty,
+// that are not cloned yet. A named repo is cloned whether it is chosen or
+// not, and the choice is left as it is. One repo failing does not stop the
+// others.
 func (s *Service) Clone(ctx context.Context, names []string, out Output) (BatchResult, error) {
 	result := newBatch(string(clone.Cloned), string(clone.Skipped))
-	git, err := gitx.New(ctx)
-	if err != nil {
-		return result, err
-	}
 	selected, err := selectRepos(s.home.Team, names)
 	if err != nil {
 		return result, err
@@ -304,11 +322,64 @@ func (s *Service) Clone(ctx context.Context, names []string, out Output) (BatchR
 	if len(selected) == 0 {
 		return noRepos(out, result)
 	}
-	protocol, err := s.ensureProtocolTo(ctx, git, repoURLs(selected), out, &result)
+	if len(names) == 0 {
+		selected = s.chosenRepos()
+	}
+	if len(selected) == 0 {
+		fmt.Fprintf(out.Out, "No repos selected in %s\n", brand.LocalFile)
+		result.Empty = true
+		return result, nil
+	}
+	git, err := gitx.New(ctx)
 	if err != nil {
 		return result, err
 	}
-	targets, err := clone.Targets(selected, protocol)
+	return s.cloneRepos(ctx, git, selected, out, result)
+}
+
+// cloneMissing is the clone step of Sync: it clones the chosen repos with
+// nothing at their path yet. A repo already there, even with another origin
+// or as something that is not a checkout, is left to Clone, repo list and
+// doctor. With nothing to clone it prints nothing, needs no git and
+// contacts no remote, and the result is Empty.
+func (s *Service) cloneMissing(ctx context.Context, out Output) (BatchResult, error) {
+	result := newBatch(string(clone.Cloned), string(clone.Skipped))
+	var missing []config.Repo
+	for _, repo := range s.chosenRepos() {
+		if !exists(filepath.Join(s.home.Root, filepath.FromSlash(repo.Path))) {
+			missing = append(missing, repo)
+		}
+	}
+	if len(missing) == 0 {
+		result.Empty = true
+		return result, nil
+	}
+	git, err := gitx.New(ctx)
+	if err != nil {
+		return result, err
+	}
+	return s.cloneRepos(ctx, git, missing, out, result)
+}
+
+// chosenRepos returns the repos the personal file chooses, in team-file order.
+func (s *Service) chosenRepos() []config.Repo {
+	var chosen []config.Repo
+	for _, repo := range s.home.Team.Repos {
+		if s.home.Personal.RepoChosen(repo.Name) {
+			chosen = append(chosen, repo)
+		}
+	}
+	return chosen
+}
+
+// cloneRepos clones each of repos that is not cloned yet, first detecting
+// the protocol when it is not set, and ends with the summary.
+func (s *Service) cloneRepos(ctx context.Context, git *gitx.Git, repos []config.Repo, out Output, result BatchResult) (BatchResult, error) {
+	protocol, err := s.ensureProtocolTo(ctx, git, repoURLs(repos), out, &result)
+	if err != nil {
+		return result, err
+	}
+	targets, err := clone.Targets(repos, protocol)
 	if err != nil {
 		return result, err
 	}
@@ -335,6 +406,82 @@ func noRepos(out Output, result BatchResult) (BatchResult, error) {
 	fmt.Fprintf(out.Out, "No repos configured in %s\n", brand.TeamFile)
 	result.Empty = true
 	return result, nil
+}
+
+// EnableRepos chooses the named repos in the personal file and returns the
+// ones that were not chosen yet, as the team file spells them. Without a
+// repos key every repo is already chosen, so nothing is written. A name the
+// team file does not have is a usage error, and then nothing is written.
+func (s *Service) EnableRepos(names []string) ([]string, error) {
+	repos, err := s.namedRepos(names)
+	if err != nil {
+		return nil, err
+	}
+	if s.home.Personal.Repos == nil {
+		return nil, nil
+	}
+	chosen := slices.Clone(s.home.Personal.Repos)
+	var added []string
+	for _, repo := range repos {
+		if !containsFold(chosen, repo.Name) {
+			chosen = append(chosen, repo.Name)
+			added = append(added, repo.Name)
+		}
+	}
+	if len(added) == 0 {
+		return nil, nil
+	}
+	if err := s.savePersonal(s.home.Personal.WithRepos(chosen)); err != nil {
+		return nil, err
+	}
+	return added, nil
+}
+
+// DisableRepos stops choosing the named repos and returns them as they were
+// written in the choice. Without a repos key the choice starts as every
+// team-file repo in file order, and disabling the last chosen one writes
+// `repos = []` rather than removing the key. Stale names in the choice are
+// kept. A name the team file does not have is a usage error, as is a name
+// that is not chosen; then nothing is written. Checkouts are never touched.
+func (s *Service) DisableRepos(names []string) ([]string, error) {
+	if _, err := s.namedRepos(names); err != nil {
+		return nil, err
+	}
+	current := s.home.Personal.Repos
+	if current == nil {
+		current = s.home.Team.Names()
+	}
+	chosen, removed, err := withoutChoices(current, names)
+	if err != nil {
+		return nil, err
+	}
+	if chosen == nil {
+		// Non-nil keeps the key: nil would choose every repo again.
+		chosen = []string{}
+	}
+	if err := s.savePersonal(s.home.Personal.WithRepos(chosen)); err != nil {
+		return nil, err
+	}
+	return removed, nil
+}
+
+// namedRepos returns the team-file repos called names, compared
+// case-insensitively; any other name is a usage error.
+func (s *Service) namedRepos(names []string) ([]config.Repo, error) {
+	var repos []config.Repo
+	var unknown []string
+	for _, name := range names {
+		index := slices.IndexFunc(s.home.Team.Repos, func(r config.Repo) bool { return strings.EqualFold(r.Name, name) })
+		if index < 0 {
+			unknown = append(unknown, name)
+			continue
+		}
+		repos = append(repos, s.home.Team.Repos[index])
+	}
+	if len(unknown) > 0 {
+		return nil, unknownNames(unknown, s.home.Team)
+	}
+	return repos, nil
 }
 
 // selectRepos returns every repo when names is empty, otherwise the named

@@ -182,7 +182,7 @@ func TestRepoAddWithoutProtocolOrBranchDetectsProtocol(t *testing.T) {
 	if !strings.Contains(r.stdout, "detected ssh") {
 		t.Errorf("stdout lacks the detection result: %s", r.stdout)
 	}
-	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"ssh\"\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 3\nprotocol = \"ssh\"\n" {
 		t.Errorf("personal file %q", got)
 	}
 	if !strings.Contains(read(t, teamFile(home)), `branch = "trunk"`) {
@@ -400,7 +400,7 @@ func TestConfigProtocol(t *testing.T) {
 		t.Errorf("unset: %+v", r)
 	}
 	run(t, "-C", home, "config", "protocol", "ssh").expect(t, exitOK, "")
-	if got := read(t, localFile(home)); got != "schema_version = 2\nprotocol = \"ssh\"\n" {
+	if got := read(t, localFile(home)); got != "schema_version = 3\nprotocol = \"ssh\"\n" {
 		t.Errorf("personal file %q", got)
 	}
 	r = run(t, "-C", home, "config", "protocol")
@@ -441,9 +441,9 @@ func TestVersionGateBlocksCommandsAndWrites(t *testing.T) {
 
 func TestVersionGateOnPersonalFile(t *testing.T) {
 	home := newHome(t)
-	write(t, localFile(home), "schema_version = 3\nprotocol = \"ssh\"\n")
+	write(t, localFile(home), "schema_version = 4\nprotocol = \"ssh\"\n")
 	run(t, "-C", home, "config", "protocol", "https").expect(t, exitBad, "error [version] "+brand.LocalFile)
-	if !strings.Contains(read(t, localFile(home)), "schema_version = 3") {
+	if !strings.Contains(read(t, localFile(home)), "schema_version = 4") {
 		t.Error("personal file rewritten")
 	}
 }

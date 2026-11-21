@@ -27,7 +27,10 @@ commands:
   ui                         open the terminal UI; stdin and stdout must be
                              terminals
   init <dir>                 create a new home repo in a missing or empty <dir>
-  clone [<name>...]          clone the listed repos that are not cloned yet
+  clone [<name>...]          clone the listed repos that are not cloned yet;
+                             with no names, the repos chosen in
+                             %[3]s (every repo when it has no
+                             repos key)
   repo add <url> [--name <name>] [--path <path>] [--branch <branch>] [--description <text>]
                              add a repo to %[2]s
   repo remove <name>         remove a repo from %[2]s; the checkout is kept
@@ -79,8 +82,9 @@ commands:
                              chosen agents; --force overwrites files
                              edited by hand
   subagent list              show every subagent and its state
-  sync [--force]             skill sync, mcp sync, then subagent sync;
-                             --force is for MCP and subagents
+  sync [--force]             clone the chosen repos that are not cloned
+                             yet, then skill sync, mcp sync and subagent
+                             sync; --force is for MCP and subagents
   config protocol [ssh|https]
                              show or set your protocol in %[3]s
   config agents [claude,codex|none]

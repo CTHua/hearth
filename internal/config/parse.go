@@ -40,9 +40,9 @@ func decode(file string, data []byte) (document, error) {
 	return document{file: file, values: values, keys: meta.Keys()}, nil
 }
 
-// checkSchema accepts a schema_version from oldest to SchemaVersion. One
-// older than oldest is a config error that points to the upgrade command.
-func checkSchema(doc document, oldest int64) apperr.List {
+// checkSchema accepts a schema_version from oldest to newest. One older than
+// oldest is a config error that points to the upgrade command.
+func checkSchema(doc document, oldest int64, newest int64) apperr.List {
 	raw, present := doc.values[keySchemaVersion]
 	if !present {
 		return apperr.List{configError(doc.file, "%s: missing", keySchemaVersion)}
@@ -51,13 +51,13 @@ func checkSchema(doc document, oldest int64) apperr.List {
 	if !isInt {
 		return apperr.List{configError(doc.file, "%s: must be an integer", keySchemaVersion)}
 	}
-	if value > SchemaVersion {
+	if value > newest {
 		return apperr.List{apperr.New(apperr.Version, "%s: %s %d is newer than this build supports (%d); upgrade %s",
-			doc.file, keySchemaVersion, value, SchemaVersion, brand.Name)}
+			doc.file, keySchemaVersion, value, newest, brand.Name)}
 	}
 	if value < oldest {
 		return apperr.List{configError(doc.file, "%s: must be %d, not %d; run `%s upgrade` to bring the file up to date",
-			keySchemaVersion, SchemaVersion, value, brand.Name)}
+			keySchemaVersion, newest, value, brand.Name)}
 	}
 	return nil
 }
@@ -66,7 +66,7 @@ func checkSchema(doc document, oldest int64) apperr.List {
 // warning that min_hearth_version was not checked. oldest is the lowest
 // schema_version accepted.
 func checkTeamVersions(doc document, running string, oldest int64) (apperr.List, string) {
-	problems := checkSchema(doc, oldest)
+	problems := checkSchema(doc, oldest, TeamSchemaVersion)
 	raw, present := doc.values[brand.MinVersionKey]
 	if !present {
 		return append(problems, configError(doc.file, "%s: missing", brand.MinVersionKey)), ""
@@ -279,7 +279,7 @@ func decodeEntry(table string, fields []string, optional []string, lists []strin
 }
 
 func parsePersonal(doc document) (Personal, apperr.List) {
-	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keySkills, keyMCP, keySubagents)
+	problems := unknownKeys(doc, keySchemaVersion, keyProtocol, keyAgents, keyRepos, keySkills, keyMCP, keySubagents)
 	personal := Personal{SchemaVersion: doc.values[keySchemaVersion].(int64)}
 	if raw, present := doc.values[keyProtocol]; present {
 		text, isString := raw.(string)
@@ -292,6 +292,11 @@ func parsePersonal(doc document) (Personal, apperr.List) {
 	agents, agentProblems := stringList(doc, keyAgents, agentProblem)
 	personal.Agents = agents
 	problems = append(problems, agentProblems...)
+	// A present key, even an empty array, decodes to a non-nil list, which
+	// keeps "no key" (every repo) apart from `repos = []` (none).
+	repos, repoProblems := stringList(doc, keyRepos, NameProblem)
+	personal.Repos = repos
+	problems = append(problems, repoProblems...)
 	skills, skillProblems := stringList(doc, keySkills, chosenSkillProblem)
 	personal.Skills = skills
 	problems = append(problems, skillProblems...)
@@ -304,8 +309,8 @@ func parsePersonal(doc document) (Personal, apperr.List) {
 	return personal, append(problems, subagentProblems...)
 }
 
-// stringList reads the array of strings called key; an absent key is an
-// empty list.
+// stringList reads the array of strings called key; an absent key is nil
+// and a present one, even an empty array, is non-nil.
 func stringList(doc document, key string, check func(string) string) ([]string, apperr.List) {
 	raw, present := doc.values[key]
 	if !present {

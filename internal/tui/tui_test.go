@@ -34,10 +34,12 @@ var ansiCodes = regexp.MustCompile("\x1b\\[[0-9;]*m")
 // fake records every call that changes something and keeps just enough
 // state for the screen to follow.
 type fake struct {
-	home    config.Home
-	repos   []core.RepoRow
-	skills  []skill.Row
-	servers []mcp.Row
+	home  config.Home
+	repos []core.RepoRow
+	// reposErr is what ListRepos returns.
+	reposErr error
+	skills   []skill.Row
+	servers  []mcp.Row
 	// subagents and subagentsErr are what ListSubagents returns.
 	subagents    []subagent.Row
 	subagentsErr error
@@ -50,8 +52,10 @@ type fake struct {
 	// changes and changesErr are what TeamChanges returns.
 	changes    []core.TeamChange
 	changesErr error
-	// syncTail makes Sync print MCP lines after the skill summary.
+	// syncTail makes Sync print MCP lines after the skill summary; syncErr
+	// is what Sync returns.
 	syncTail  bool
+	syncErr   error
 	cloneFail []string
 	// block makes Clone and UpdateSkill wait for their context; started is
 	// closed once they do.
@@ -70,7 +74,8 @@ func newFake() *fake {
 		{Name: "tracker", Transport: config.TransportHTTP, URL: "https://mcp.example.invalid/mcp"},
 	}
 	for _, repo := range repos {
-		f.repos = append(f.repos, core.RepoRow{Repo: repo, Status: checkout.Status{State: checkout.Missing}})
+		// No repos key in the personal file: every repo is chosen.
+		f.repos = append(f.repos, core.RepoRow{Repo: repo, Status: checkout.Status{State: checkout.Missing}, Chosen: true})
 	}
 	f.skills = []skill.Row{
 		{Name: "pdf", Source: skill.External, State: skill.Disabled},
@@ -106,7 +111,7 @@ func (f *fake) RemoveRepo(name string) (core.RemoveRepoResult, error) {
 
 func (f *fake) ListRepos(context.Context) ([]core.RepoRow, error) {
 	f.loads++
-	return f.repos, nil
+	return f.repos, f.reposErr
 }
 
 func (f *fake) Clone(ctx context.Context, names []string, out core.Output) (core.BatchResult, error) {
@@ -144,6 +149,27 @@ func (f *fake) SetProtocol(protocol string) error {
 func (f *fake) DetectProtocol(context.Context) (string, error) {
 	f.record("DetectProtocol")
 	return "ssh", nil
+}
+
+func (f *fake) EnableRepos(names []string) ([]string, error) {
+	f.record("EnableRepos %v", names)
+	f.chooseRepos(names, true)
+	return names, nil
+}
+
+func (f *fake) DisableRepos(names []string) ([]string, error) {
+	f.record("DisableRepos %v", names)
+	f.chooseRepos(names, false)
+	return names, nil
+}
+
+// chooseRepos keeps the repo rows in step with a choice, as core would.
+func (f *fake) chooseRepos(names []string, chosen bool) {
+	for i := range f.repos {
+		if slices.Contains(names, f.repos[i].Repo.Name) {
+			f.repos[i].Chosen = chosen
+		}
+	}
 }
 
 func (f *fake) SetAgents(agents []string) error {
@@ -254,7 +280,7 @@ func (f *fake) Sync(_ context.Context, force bool, out core.Output) (core.SyncRe
 		fmt.Fprint(out.Out, core.BatchResult{DoneLabel: "installed", SkippedLabel: "skipped"}.Summary())
 		fmt.Fprint(out.Out, "no agent chosen\nremoved .mcp.json\nremoved .codex/config.toml\n")
 	}
-	return core.SyncResult{}, nil
+	return core.SyncResult{}, f.syncErr
 }
 
 var _ core.Actions = (*fake)(nil)
@@ -439,11 +465,12 @@ func TestDetectWithoutReposIsDisabled(t *testing.T) {
 func TestSkillsTab(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	// Agents and skills are on Mine, under the three protocol rows.
+	// Agents and skills are on Mine, under the three protocol rows; the two
+	// repo rows are between them.
 	press(m, "1", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "SetAgents []", "SetAgents [codex]")
-	press(m, "down", "space")
+	press(m, "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "EnableSkills [pdf]", "DisableSkills [notes]")
 	press(m, "down", "space")
@@ -467,9 +494,9 @@ func TestSkillsTab(t *testing.T) {
 func TestMCPTab(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	// Servers are the last rows of Mine: 3 protocol, 2 agent and 3 skill rows
-	// come first.
-	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "space")
+	// Servers are the last rows of Mine: 3 protocol, 2 agent, 2 repo and 3
+	// skill rows come first.
+	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "EnableMCP [docs]", "DisableMCP [tracker]")
 	finish(t, m, press(m, "s"))
@@ -586,7 +613,7 @@ func TestFailedActionShowsNoSuccessLine(t *testing.T) {
 	f := newFake()
 	f.enableErr = apperr.New(apperr.Usage, "cannot enable pdf")
 	m := newModel(f)
-	press(m, "1", "down", "down", "down", "down", "down", "space")
+	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "space")
 	expectCalls(t, f, "EnableSkills [pdf]")
 	expectScreen(t, m, "cannot enable pdf")
 	if text := screen(m); strings.Contains(text, "enabled:") {

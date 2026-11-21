@@ -21,6 +21,7 @@ type section int
 const (
 	sectionProtocol section = iota
 	sectionAgents
+	sectionRepos
 	sectionSkills
 	sectionServers
 	sectionSubagents
@@ -87,7 +88,7 @@ func (m *Model) toggleGroup(line skillLine) {
 	}
 	if len(off) > 0 {
 		added, err := m.actions.EnableSkills(off)
-		m.finishNow(onSuccess([]string{fmt.Sprintf("enabled: %s (saved to %s)", core.LabelList(added), brand.LocalFile)}, err), false, err)
+		m.finishChoice(onSuccess([]string{fmt.Sprintf("enabled: %s (saved to %s)", core.LabelList(added), brand.LocalFile)}, err), err)
 		return
 	}
 	if len(on) == 0 {
@@ -95,20 +96,23 @@ func (m *Model) toggleGroup(line skillLine) {
 		return
 	}
 	removed, err := m.actions.DisableSkills(on)
-	m.finishNow(onSuccess([]string{fmt.Sprintf("disabled: %s (saved to %s)", core.LabelList(removed), brand.LocalFile)}, err), false, err)
+	m.finishChoice(onSuccess([]string{fmt.Sprintf("disabled: %s (saved to %s)", core.LabelList(removed), brand.LocalFile)}, err), err)
 }
 
 // mineRow says which group a Mine row is in and its index there; a skill
 // row's index is in skillLines.
 func (m *Model) mineRow(row int) (section, int) {
-	skillsStart := optionCount + agentRows
+	reposStart := optionCount + agentRows
+	skillsStart := reposStart + len(m.snap.repos)
 	serversStart := skillsStart + len(m.skillLines())
 	subagentsStart := serversStart + len(m.snap.servers)
 	switch {
 	case row < optionCount:
 		return sectionProtocol, row
-	case row < skillsStart:
+	case row < reposStart:
 		return sectionAgents, row - optionCount
+	case row < skillsStart:
+		return sectionRepos, row - reposStart
 	case row < serversStart:
 		return sectionSkills, row - skillsStart
 	case row < subagentsStart:
@@ -118,7 +122,7 @@ func (m *Model) mineRow(row int) (section, int) {
 }
 
 // mineKey handles Mine: every change here goes to the personal file, and
-// s syncs the generated files.
+// s clones the chosen repos and syncs the generated files.
 func (m *Model) mineKey(msg tea.KeyPressMsg) tea.Cmd {
 	if key.Matches(msg, keys.Sync) {
 		return m.start(jobSync, func(ctx context.Context, out core.Output) ([]string, bool, error) {
@@ -143,7 +147,13 @@ func (m *Model) mineKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		agents := toggled(m.snap.home.Personal.Agents, config.Agents()[index])
 		err := m.actions.SetAgents(agents)
-		m.finishNow(onSuccess([]string{fmt.Sprintf("agents: %s (saved to %s)", core.LabelList(agents), brand.LocalFile)}, err), false, err)
+		m.finishChoice(onSuccess([]string{fmt.Sprintf("agents: %s (saved to %s)", core.LabelList(agents), brand.LocalFile)}, err), err)
+	case sectionRepos:
+		if m.busy() {
+			return nil
+		}
+		row := m.snap.repos[index]
+		m.toggleChoice(row.Repo.Name, row.Chosen, m.actions.EnableRepos, m.actions.DisableRepos)
 	case sectionSkills:
 		line := m.skillLines()[index]
 		if line.skill < 0 {
@@ -212,11 +222,21 @@ func (m *Model) chooseProtocol(option int) tea.Cmd {
 func (m *Model) toggleChoice(name string, enabled bool, enable func([]string) ([]string, error), disable func([]string) ([]string, error)) {
 	if enabled {
 		removed, err := disable([]string{name})
-		m.finishNow(onSuccess([]string{fmt.Sprintf("disabled: %s (saved to %s)", core.LabelList(removed), brand.LocalFile)}, err), false, err)
+		m.finishChoice(onSuccess([]string{fmt.Sprintf("disabled: %s (saved to %s)", core.LabelList(removed), brand.LocalFile)}, err), err)
 		return
 	}
 	added, err := enable([]string{name})
-	m.finishNow(onSuccess([]string{fmt.Sprintf("enabled: %s (saved to %s)", core.LabelList(added), brand.LocalFile)}, err), false, err)
+	m.finishChoice(onSuccess([]string{fmt.Sprintf("enabled: %s (saved to %s)", core.LabelList(added), brand.LocalFile)}, err), err)
+}
+
+// finishChoice is finishNow for a change of what to sync: agents, repos,
+// skills, MCP servers or subagents. Once one is saved, quitting with q syncs
+// until a sync succeeds.
+func (m *Model) finishChoice(lines []string, err error) {
+	if err == nil {
+		m.unsynced = true
+	}
+	m.finishNow(lines, false, err)
 }
 
 // toggled returns the known agents in their usual order, with agent flipped.

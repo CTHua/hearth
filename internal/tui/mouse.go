@@ -226,6 +226,9 @@ func (m *Model) rowText() string {
 	}
 	group, index := m.mineRow(row)
 	switch group {
+	case sectionRepos:
+		repo := m.snap.repos[index]
+		return cmp.Or(repo.Repo.URL, repo.Status.Detail)
 	case sectionSkills:
 		line := m.skillLines()[index]
 		if line.skill < 0 {

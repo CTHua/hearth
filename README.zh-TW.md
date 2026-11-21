@@ -98,7 +98,7 @@ hearth repo describe api-service "Orders API"
 git clone <你的 Home Repo URL> team-home
 cd team-home
 hearth config protocol ssh        # 或 https；不設的話，第一次 clone 時實際連線偵測
-hearth clone                      # clone 所有還沒 clone 的產品
+hearth clone                      # clone 有選取、還沒 clone 的產品
 hearth repo list
 ```
 
@@ -110,6 +110,14 @@ api-service  products/api-service  develop  ok              Orders API
 
 每個產品是 `products/` 底下獨立的 Git repo，Home Repo 忽略這個目錄。
 
+不必 clone 每個產品。`hearth.local.toml` 的 `repos` 列出你要的 repo；沒有這個 key 時，`hearth.toml` 裡的 repo 全部算選取。寫了這個 key 之後，團隊之後新增的 repo 預設不選，要自己加進去；`repos = []` 代表一個都不選。終端介面的 Mine 分頁可以逐一開關 repo。`hearth clone` 不帶名稱時只 clone 選取的 repo（`hearth clone <name>` 不管有沒有選取都會 clone 那個 repo），`hearth repo list` 對沒選取、也還沒 clone 的 repo 顯示 `not-selected`。取消選取不會刪掉已經 clone 的 checkout。
+
+```toml
+schema_version = 3
+protocol = "ssh"
+repos = ["web-app"]
+```
+
 ### 3. 選 skill、MCP server 和 subagent
 
 ```sh
@@ -117,7 +125,7 @@ hearth config agents claude,codex
 hearth skill enable pdf
 hearth mcp enable docs
 hearth subagent enable reviewer
-hearth sync                       # 安裝 skill，寫出 MCP 設定和 subagent 檔
+hearth sync                       # clone 選取但還沒 clone 的 repo，安裝 skill，寫出 MCP 設定和 subagent 檔
 hearth doctor                     # 檢查 git、兩個設定檔、每個 checkout 和每個選擇
 ```
 
@@ -130,9 +138,9 @@ hearth 讀 Home Repo 根目錄的兩個檔案。它從目前目錄往上找 `hea
 | 檔案 | 內容 | 誰改 | 進 Git |
 | --- | --- | --- | --- |
 | `hearth.toml` | 產品 repo、外部 skill、MCP server | 團隊，走 PR | 是 |
-| `hearth.local.toml` | protocol、agent、選用的 skill、MCP server、subagent | 每個人自己 | 否 |
+| `hearth.local.toml` | protocol、agent、選取的 repo、選用的 skill、MCP server、subagent | 每個人自己 | 否 |
 
-團隊自己寫的 skill 放 `skills/<name>/`，subagent 放 `subagents/<name>.md`，都進版控。`hearth sync` 把選用的項目轉成各 agent 讀的檔案：
+團隊自己寫的 skill 放 `skills/<name>/`，subagent 放 `subagents/<name>.md`，都進版控。`hearth sync` 先 clone 選取但還沒有 checkout 的 repo，印的行和 `hearth clone` 相同；已經 clone 的 repo 不碰。某個 repo clone 失敗不會擋住後面的步驟，但 exit code 會是 `1`。接著把選用的項目轉成各 agent 讀的檔案：
 
 | 項目 | Claude Code | Codex |
 | --- | --- | --- |
@@ -150,7 +158,8 @@ agent 請從 Home Repo 根目錄啟動。Claude Code 從 `products/<name>/` 啟�
 
 ![Repos 分頁：每個產品的分支和 checkout 狀態，上次 commit 之後新增的 repo 標 +](docs/images/tui-repos.png)
 
-- **Mine** 改 `hearth.local.toml`：protocol、agent，以及每個 skill、MCP server、subagent 的開關。`s` 跑 `hearth sync`。
+- **Mine** 改 `hearth.local.toml`：protocol、agent，以及每個 repo、skill、MCP server、subagent 的開關。`s` 跑 `hearth sync`，也會 clone 選取的 repo。改過 agent、repo、skill、MCP server 或 subagent 的選擇、之後還沒 sync 過就按 `q`，介面關掉後會在終端機跑一次 `hearth sync`，輸出和 exit code 都跟直接跑相同；用 `ctrl+c` 離開不會 sync，只改 protocol 也不算。
+- **Repos** 對沒選取、也還沒 clone 的 repo 顯示 `not-selected`；`c` clone 選取的 repo。
 - **Repos、Skills、MCP** 改 `hearth.toml`。`a` 新增，`d` 按兩次移除。頁首列出跟 `HEAD` 比的改動數，有改動的列標 `+`（新增）或 `~`（內容不同）。
 - `?` 列出所有按鍵。`y` 用 OSC 52 複製選到那列的 URL。`m` 關掉滑鼠，讓你能拖曳選字。
 
@@ -195,9 +204,11 @@ hearth upgrade --check            # 列出會改的地方；有要改的就 exit
 hearth upgrade
 ```
 
-`upgrade` 只重寫 `AGENTS.md`、`.gitignore` 裡 `hearth:begin` 和 `hearth:end` 標記之間的內容，並把兩個設定檔升到目前的 `schema_version`。標記外的內容逐 byte 不變。標記缺少、重複或順序錯時 exit 2，什麼都不寫。
+`upgrade` 只重寫 `AGENTS.md`、`.gitignore` 裡 `hearth:begin` 和 `hearth:end` 標記之間的內容，並把每個設定檔升到它目前的 `schema_version`。標記外的內容逐 byte 不變。標記缺少、重複或順序錯時 exit 2，什麼都不寫。
 
 hearth 0.2.0 只讀 `schema_version = 2`（加了 skill 群組）。它的 `upgrade` 只在原地改兩個值：兩個設定檔的 `schema_version` 從 1 改成 2，`hearth.toml` 的 `min_hearth_version` 低於 `0.2.0` 時改成 `0.2.0`；註解、空行和 key 的順序都保留。升級後的 `hearth.toml` 走 PR 合併；還在用 0.1.0 的同事要先裝 0.2.0，每個人也要各跑一次 `hearth upgrade` 升自己的 `hearth.local.toml`。
+
+這個版本讀 `schema_version = 2` 的 `hearth.toml`（跟 0.2.0 相同）和 `schema_version = 3` 的 `hearth.local.toml`（加了 `repos`）。它的 `upgrade` 只把個人檔的 `schema_version` 從 2 改成 3（從 1 開始的會一路升到 3）；`hearth.toml` 和它的 `min_hearth_version` 不動，還在用 0.2.0 的同事照樣讀得了團隊檔。沒有 `repos` key 等於全選，所以升級後第一次 `hearth sync` 會把所有還沒 clone 的 repo 都 clone 下來，團隊 repo 多的話會花不少時間。不想這樣的話，sync 之前先在 Mine 分頁取消選取，或在 `hearth.local.toml` 寫 `repos = []`（或你要的清單）。`AGENTS.md` 標記區段裡 `hearth clone` 那一行也改了，跑 `upgrade` 之前 `doctor` 會警告那段跟範本不同。
 
 用 hearth 0.2.0 或更早的版本建的 Home Repo，檔案是繁體中文。`upgrade` 只會把 `AGENTS.md` 的標記區段換成英文，其他檔案不變；想要一致就自己翻。
 

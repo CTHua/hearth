@@ -477,12 +477,12 @@ func TestEnableAndDisableWholeGroup(t *testing.T) {
 	run(t, "-C", home, "skill", "add", toolkitHTTPS).expect(t, exitOK, "")
 	res := run(t, "-C", home, "skill", "enable", "toolkit")
 	res.expect(t, exitOK, "")
-	if want := "schema_version = 2\nprotocol = \"https\"\nskills = [\"one\", \"two\", \"three\"]\n"; read(t, localFile(home)) != want {
+	if want := "schema_version = 3\nprotocol = \"https\"\nskills = [\"one\", \"two\", \"three\"]\n"; read(t, localFile(home)) != want {
 		t.Errorf("personal file %q, want %q", read(t, localFile(home)), want)
 	}
 	run(t, "-C", home, "skill", "disable", "one").expect(t, exitOK, "")
 	run(t, "-C", home, "skill", "disable", "Toolkit").expect(t, exitOK, "")
-	if want := "schema_version = 2\nprotocol = \"https\"\n"; read(t, localFile(home)) != want {
+	if want := "schema_version = 3\nprotocol = \"https\"\n"; read(t, localFile(home)) != want {
 		t.Errorf("personal file %q, want %q", read(t, localFile(home)), want)
 	}
 	run(t, "-C", home, "skill", "disable", "toolkit").expect(t, exitBad, "error [usage] not enabled")
@@ -490,7 +490,7 @@ func TestEnableAndDisableWholeGroup(t *testing.T) {
 	mkdir(t, at(home, "skills/toolkit"))
 	write(t, at(home, "skills/toolkit/SKILL.md"), skillV1)
 	run(t, "-C", home, "skill", "enable", "toolkit").expect(t, exitOK, "")
-	if want := "schema_version = 2\nprotocol = \"https\"\nskills = [\"toolkit\"]\n"; read(t, localFile(home)) != want {
+	if want := "schema_version = 3\nprotocol = \"https\"\nskills = [\"toolkit\"]\n"; read(t, localFile(home)) != want {
 		t.Errorf("personal file %q, want %q", read(t, localFile(home)), want)
 	}
 }
