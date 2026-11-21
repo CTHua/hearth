@@ -30,7 +30,7 @@ func skillEntry(name string, commit string, subdir string) string {
 }
 
 func TestLoadSkillsAndPersonalLists(t *testing.T) {
-	personal := "schema_version = 2\nprotocol = \"ssh\"\nagents = [\"claude\", \"codex\"]\nskills = [\"pdf-tools\", \"gone\"]\n"
+	personal := "schema_version = 3\nprotocol = \"ssh\"\nagents = [\"claude\", \"codex\"]\nskills = [\"pdf-tools\", \"gone\"]\n"
 	home, err := config.Load(writeFiles(t, header+webApp+pdfSkill, personal), released)
 	if err != nil {
 		t.Fatal(err)
@@ -88,12 +88,12 @@ func TestPersonalListRules(t *testing.T) {
 		"skills = [\"bad name\"]\n": "skills[0]: ",
 	}
 	for body, want := range cases {
-		lines, categories := loadErrors(t, writeFiles(t, header, "schema_version = 2\n"+body), released)
+		lines, categories := loadErrors(t, writeFiles(t, header, "schema_version = 3\n"+body), released)
 		if !categories[apperr.Config] || !strings.Contains(lines, brand.LocalFile+": "+want) {
 			t.Errorf("%q:\n got %s\nwant %s", body, lines, want)
 		}
 	}
-	home, err := config.Load(writeFiles(t, header, "schema_version = 2\nagents = []\nskills = [\"not-anywhere\"]\n"), released)
+	home, err := config.Load(writeFiles(t, header, "schema_version = 3\nagents = []\nskills = [\"not-anywhere\"]\n"), released)
 	if err != nil || len(home.Personal.Agents) != 0 || home.Personal.Skills[0] != "not-anywhere" {
 		t.Errorf("an unknown chosen name must load: %+v, %v", home, err)
 	}
@@ -127,7 +127,7 @@ func TestWriteTeamPutsReposBeforeSkills(t *testing.T) {
 }
 
 func TestWritePersonalKeepsEveryKey(t *testing.T) {
-	root := writeFiles(t, header, "schema_version = 2\nprotocol = \"https\"\nskills = [\"pdf\"]\n")
+	root := writeFiles(t, header, "schema_version = 3\nprotocol = \"https\"\nskills = [\"pdf\"]\n")
 	home, err := config.Load(root, released)
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestWritePersonalKeepsEveryKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "schema_version = 2\nprotocol = \"ssh\"\nagents = [\"codex\"]\nskills = [\"pdf\"]\n"; string(data) != want {
+	if want := "schema_version = 3\nprotocol = \"ssh\"\nagents = [\"codex\"]\nskills = [\"pdf\"]\n"; string(data) != want {
 		t.Errorf("personal file %q, want %q", data, want)
 	}
 	if err := config.WritePersonal(root, home.Personal.WithAgents(nil).WithSkills(nil)); err != nil {
@@ -149,7 +149,7 @@ func TestWritePersonalKeepsEveryKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "schema_version = 2\nprotocol = \"https\"\n"; string(data) != want {
+	if want := "schema_version = 3\nprotocol = \"https\"\n"; string(data) != want {
 		t.Errorf("emptied lists: %q, want %q", data, want)
 	}
 }

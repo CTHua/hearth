@@ -40,6 +40,8 @@ type Actions interface {
 	ListRepos(ctx context.Context) ([]RepoRow, error)
 	Clone(ctx context.Context, names []string, out Output) (BatchResult, error)
 	FixRemote(ctx context.Context, names []string, out Output) (BatchResult, error)
+	EnableRepos(names []string) ([]string, error)
+	DisableRepos(names []string) ([]string, error)
 
 	SetProtocol(protocol string) error
 	DetectProtocol(ctx context.Context) (string, error)

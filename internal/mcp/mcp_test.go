@@ -46,7 +46,7 @@ func home(t *testing.T, agents []string, names []string) *config.Home {
 	return &config.Home{
 		Root:     t.TempDir(),
 		Team:     config.Team{MCP: servers},
-		Personal: config.Personal{SchemaVersion: config.SchemaVersion, Agents: agents, MCP: names},
+		Personal: config.Personal{SchemaVersion: config.PersonalSchemaVersion, Agents: agents, MCP: names},
 	}
 }
 

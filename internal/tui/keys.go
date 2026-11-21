@@ -45,9 +45,11 @@ var keys = keyMap{
 	Add:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
 	Remove:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "remove")),
 	Update:    key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update pin")),
-	Clone:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "clone all")),
+	// "chosen", not "selected": the Repos help line keeps y copy at 80
+	// columns.
+	Clone:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "clone chosen")),
 	Fix:       key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fix remote")),
-	Sync:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sync")),
+	Sync:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "clone + sync")),
 	Copy:      key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
 	Mouse:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mouse on/off")),
 	Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "keys")),
@@ -85,7 +87,7 @@ var keySheet = [][]key.Binding{
 	},
 	{
 		heading("team"), keys.Add, double(keys.Remove), keys.Update,
-		labeled(keys.Clone, "clone all (Repos)"), labeled(keys.Fix, "fix remote (Repos)"),
+		labeled(keys.Clone, "clone chosen (Repos)"), labeled(keys.Fix, "fix remote (Repos)"),
 		heading(""), heading("forms"), keys.Save, keys.NextField, keys.Cancel,
 		heading(""), heading("mouse"),
 		note("click", "tab, row, box, key hint"),

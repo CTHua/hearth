@@ -11,6 +11,7 @@ import (
 	"github.com/CTHua/hearth/internal/checkout"
 	"github.com/CTHua/hearth/internal/clone"
 	"github.com/CTHua/hearth/internal/config"
+	"github.com/CTHua/hearth/internal/core"
 	"github.com/CTHua/hearth/internal/giturl"
 	"github.com/CTHua/hearth/internal/gitx"
 	"github.com/CTHua/hearth/internal/mcp"
@@ -257,6 +258,12 @@ func checkRepos(ctx context.Context, report *doctorReport, git *gitx.Git, home *
 		status, err := checkout.Inspect(ctx, git, home.Root, t.Repo.Path, t.URL)
 		if err != nil {
 			return err
+		}
+		row := core.RepoRow{Repo: t.Repo, Status: status, Chosen: home.Personal.RepoChosen(t.Repo.Name)}
+		if row.NotSelected() {
+			// Not chosen and not cloned is what the person asked for.
+			report.ok("%s %s in %s", t.Repo.Name, core.NotSelectedLabel, brand.LocalFile)
+			continue
 		}
 		switch status.State {
 		case checkout.OK:

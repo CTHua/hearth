@@ -52,8 +52,8 @@ func (g *groupFake) DisableSkills(names []string) ([]string, error) {
 }
 
 // kitTitle is the cursor presses from the top of Mine to the group's title
-// row: 3 protocol rows, 2 agent rows, then pdf.
-var kitTitle = []string{"1", "down", "down", "down", "down", "down", "down"}
+// row: 3 protocol rows, 2 agent rows, 2 repo rows, then pdf.
+var kitTitle = []string{"1", "down", "down", "down", "down", "down", "down", "down", "down"}
 
 func TestMineShowsGroupTitleAndTogglesTheGroup(t *testing.T) {
 	g := newGroupFake()

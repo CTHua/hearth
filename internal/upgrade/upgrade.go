@@ -56,23 +56,27 @@ var (
 )
 
 // Plan is what Run upgrades to: one migration chain per config file, the
-// schema they end at, and the check that the migrated files load.
+// schema each ends at, and the check that the migrated files load.
 type Plan struct {
-	Team     []Migration
-	Personal []Migration
-	Target   int64
+	Team           []Migration
+	Personal       []Migration
+	TeamTarget     int64
+	PersonalTarget int64
 	// Validate loads the config files in dir and reports what is wrong.
 	Validate func(dir string) error
 }
 
 // Default is the plan of this build. Schema 2 added groups of skills to the
 // team file and changed nothing else, so 1 -> 2 only raises the team file's
-// min version; the personal file keeps its text.
+// min version; the personal file keeps its text. Personal schema 3 added the
+// optional repos key, whose absence chooses every repo as before, so 2 -> 3
+// keeps the text too; the team file stays at 2.
 func Default() Plan {
 	return Plan{
-		Team:     []Migration{{From: 1, Apply: raiseMinVersion(config.MinVersion)}},
-		Personal: []Migration{{From: 1, Apply: unchanged}},
-		Target:   config.SchemaVersion,
+		Team:           []Migration{{From: 1, Apply: raiseMinVersion(config.MinVersion)}},
+		Personal:       []Migration{{From: 1, Apply: unchanged}, {From: 2, Apply: unchanged}},
+		TeamTarget:     config.TeamSchemaVersion,
+		PersonalTarget: config.PersonalSchemaVersion,
 		Validate: func(dir string) error {
 			_, err := config.Load(dir, version.Current())
 			return err
@@ -156,6 +160,7 @@ type pending struct {
 type configFile struct {
 	name     string
 	chain    []Migration
+	target   int64
 	optional bool
 	// present is false for an optional file that does not exist.
 	present  bool
@@ -176,11 +181,11 @@ func Run(root string, plan Plan, check bool) ([]Change, error) {
 		return nil, problems
 	}
 	files := []*configFile{
-		{name: brand.TeamFile, chain: plan.Team},
-		{name: brand.LocalFile, chain: plan.Personal, optional: true},
+		{name: brand.TeamFile, chain: plan.Team, target: plan.TeamTarget},
+		{name: brand.LocalFile, chain: plan.Personal, target: plan.PersonalTarget, optional: true},
 	}
 	for _, file := range files {
-		if err := file.migrate(root, plan.Target); err != nil {
+		if err := file.migrate(root); err != nil {
 			return nil, err
 		}
 	}
@@ -202,7 +207,7 @@ func Run(root string, plan Plan, check bool) ([]Change, error) {
 		if file.updated == nil {
 			continue
 		}
-		detail := fmt.Sprintf("%s %d -> %d", keySchemaVersion, file.from, plan.Target)
+		detail := fmt.Sprintf("%s %d -> %d", keySchemaVersion, file.from, file.target)
 		changes = append(changes, Change{File: file.name, Detail: detail})
 		writes = append(writes, pending{path: filepath.Join(root, file.name), original: file.original, updated: file.updated})
 	}
@@ -217,9 +222,9 @@ func Run(root string, plan Plan, check bool) ([]Change, error) {
 
 // migrate decodes the file without config.Load, which refuses an older
 // schema, to learn its schema, then applies the chain to its text one step
-// at a time up to target. Only the values the steps and the schema line
-// touch change; every other byte stays as it was.
-func (f *configFile) migrate(root string, target int64) error {
+// at a time up to the file's target. Only the values the steps and the
+// schema line touch change; every other byte stays as it was.
+func (f *configFile) migrate(root string) error {
 	data, err := os.ReadFile(filepath.Join(root, f.name))
 	if errors.Is(err, fs.ErrNotExist) && f.optional {
 		return nil
@@ -238,15 +243,15 @@ func (f *configFile) migrate(root string, target int64) error {
 		return err
 	}
 	f.from = from
-	if from > target {
+	if from > f.target {
 		return apperr.New(apperr.Version, "%s: %s %d is newer than this build supports (%d); upgrade %s",
-			f.name, keySchemaVersion, from, target, brand.Name)
+			f.name, keySchemaVersion, from, f.target, brand.Name)
 	}
-	if from == target {
+	if from == f.target {
 		return nil
 	}
 	text := data
-	for at := from; at < target; at++ {
+	for at := from; at < f.target; at++ {
 		step, found := stepFrom(f.chain, at)
 		if !found {
 			return apperr.New(apperr.Config, "%s: no migration from %s %d", f.name, keySchemaVersion, at)

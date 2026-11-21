@@ -276,7 +276,7 @@ func TestSyncPrintsConfigErrorsAndWarningsOnce(t *testing.T) {
 	if n := strings.Count(res.stderr, "warning: dev build"); n != 1 {
 		t.Errorf("dev warning printed %d times:\n%s", n, res.stderr)
 	}
-	write(t, localFile(home), "schema_version = 2\ncolor = \"red\"\n")
+	write(t, localFile(home), "schema_version = 3\ncolor = \"red\"\n")
 	res = run(t, "-C", home, "sync")
 	res.expect(t, exitBad, "unknown key color")
 	if n := strings.Count(res.stderr, "unknown key color"); n != 1 {
