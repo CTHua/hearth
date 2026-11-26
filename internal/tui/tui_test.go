@@ -470,7 +470,7 @@ func TestSkillsTab(t *testing.T) {
 	press(m, "1", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "SetAgents []", "SetAgents [codex]")
-	press(m, "down", "down", "down", "space")
+	press(m, "down", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "EnableSkills [pdf]", "DisableSkills [notes]")
 	press(m, "down", "space")
@@ -494,9 +494,9 @@ func TestSkillsTab(t *testing.T) {
 func TestMCPTab(t *testing.T) {
 	f := newFake()
 	m := newModel(f)
-	// Servers are the last rows of Mine: 3 protocol, 2 agent, 2 repo and 3
+	// Servers are the last rows of Mine: 3 protocol, 3 agent, 2 repo and 3
 	// skill rows come first.
-	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "down", "down", "space")
+	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "down", "down", "down", "space")
 	press(m, "down", "space")
 	expectCalls(t, f, "EnableMCP [docs]", "DisableMCP [tracker]")
 	finish(t, m, press(m, "s"))
@@ -613,7 +613,7 @@ func TestFailedActionShowsNoSuccessLine(t *testing.T) {
 	f := newFake()
 	f.enableErr = apperr.New(apperr.Usage, "cannot enable pdf")
 	m := newModel(f)
-	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "space")
+	press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "space")
 	expectCalls(t, f, "EnableSkills [pdf]")
 	expectScreen(t, m, "cannot enable pdf")
 	if text := screen(m); strings.Contains(text, "enabled:") {

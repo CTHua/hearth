@@ -13,8 +13,8 @@ import (
 )
 
 // subagentsStart is how many Mine rows come before the subagents: 3
-// protocol, 2 agent, 2 repo, 3 skill and 2 server rows.
-const subagentsStart = 12
+// protocol, 3 agent, 2 repo, 3 skill and 2 server rows.
+const subagentsStart = 13
 
 const brokenDetail = "subagents/broken.md: name is missing"
 

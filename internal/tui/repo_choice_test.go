@@ -19,10 +19,11 @@ import (
 // agents, the repos, the skills and the servers.
 const (
 	rowCodex   = 4
-	rowApp     = 5
-	rowWeb     = 6
-	rowPDF     = 7
-	rowTracker = 11
+	rowCopilot = 5
+	rowApp     = 6
+	rowWeb     = 7
+	rowPDF     = 8
+	rowTracker = 12
 )
 
 // toMineRow moves the cursor to Mine's row at index.
@@ -205,7 +206,7 @@ func TestQuitReportsWhetherToSync(t *testing.T) {
 		want    bool
 	}{
 		{"nothing changed", false, false, nil, false},
-		{"agent", false, false, []string{"1", "down", "down", "down", "space"}, true},
+		{"agent", false, false, []string{"1", "down", "down", "down", "down", "space"}, true},
 		{"repo", false, false, mineRowKeys(rowWeb, "space"), true},
 		{"skill", false, false, mineRowKeys(rowPDF, "space"), true},
 		{"MCP", false, false, mineRowKeys(rowTracker, "space"), true},
