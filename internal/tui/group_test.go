@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/CTHua/hearth/internal/brand"
 	"github.com/CTHua/hearth/internal/config"
 	"github.com/CTHua/hearth/internal/skill"
@@ -52,12 +54,13 @@ func (g *groupFake) DisableSkills(names []string) ([]string, error) {
 }
 
 // kitTitle is the cursor presses from the top of Mine to the group's title
-// row: 3 protocol rows, 2 agent rows, 2 repo rows, then pdf.
-var kitTitle = []string{"1", "down", "down", "down", "down", "down", "down", "down", "down"}
+// row: 3 protocol rows, 3 agent rows, 2 repo rows, then pdf.
+var kitTitle = []string{"1", "down", "down", "down", "down", "down", "down", "down", "down", "down"}
 
 func TestMineShowsGroupTitleAndTogglesTheGroup(t *testing.T) {
 	g := newGroupFake()
 	m := tui.New(context.Background(), g)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	press(m, "1")
 	expectScreen(t, m, "kit (0/2)", "  one", "  two")
 	press(m, kitTitle...)
@@ -84,6 +87,7 @@ func TestMineShowsGroupTitleAndTogglesTheGroup(t *testing.T) {
 func TestClickOnGroupTitleTogglesTheGroup(t *testing.T) {
 	g := newGroupFake()
 	m := tui.New(context.Background(), g)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	press(m, "1")
 	_, y := find(t, m, 1, "kit (0/2)")
 	x, _ := find(t, m, y, "[ ]")
@@ -99,6 +103,7 @@ func TestInvalidMembersAreLeftOffByTheTitle(t *testing.T) {
 	g := newGroupFake()
 	g.skills[2].Invalid = "name is also used"
 	m := tui.New(context.Background(), g)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	press(m, kitTitle...)
 	press(m, "space")
 	expectCalls(t, g.fake, "EnableSkills [one]")
@@ -114,6 +119,7 @@ func TestInvalidMembersAreLeftOffByTheTitle(t *testing.T) {
 func TestSkillsTabShowsGroupAsOneRow(t *testing.T) {
 	g := newGroupFake()
 	m := tui.New(context.Background(), g)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	press(m, "3")
 	expectScreen(t, m, "kit", "group of 2")
 	press(m, "down", "d", "d")

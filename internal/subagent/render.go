@@ -53,6 +53,32 @@ func renderClaude(def definition) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// renderCopilot returns the GitHub Copilot subagent file: name, description,
+// then the copilot fields in source order, re-encoded as YAML, then the
+// body. This format is the same as Claude Code. Values are kept; comments,
+// quoting styles and flow lists are not.
+func renderCopilot(def definition) ([]byte, error) {
+	fields := &yaml.Node{Kind: yaml.MappingNode, Tag: tagMap}
+	fields.Content = append(fields.Content, stringNode(keyName), plain(def.name), stringNode(keyDescription), plain(def.description))
+	if def.copilot != nil {
+		for _, node := range def.copilot.Content {
+			fields.Content = append(fields.Content, plain(node))
+		}
+	}
+	var b bytes.Buffer
+	b.WriteString(frontmatterLine)
+	enc := yaml.NewEncoder(&b)
+	enc.SetIndent(yamlIndent)
+	if err := enc.Encode(fields); err != nil {
+		return nil, err
+	}
+	if err := enc.Close(); err != nil {
+		return nil, err
+	}
+	b.WriteString(frontmatterLine + "\n" + def.body + "\n")
+	return b.Bytes(), nil
+}
+
 func stringNode(value string) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tagString, Value: value}
 }

@@ -36,8 +36,9 @@ const (
 
 // entryDirs is the project skills directory each agent reads.
 var entryDirs = map[string]string{
-	config.AgentClaude: ".claude/skills",
-	config.AgentCodex:  ".agents/skills",
+	config.AgentClaude:  ".claude/skills",
+	config.AgentCodex:   ".agents/skills",
+	config.AgentCopilot: ".copilot/skills",
 }
 
 // managedRoots are where the links this package creates point; a link that

@@ -229,7 +229,7 @@ func TestCopySendsURLOrMessage(t *testing.T) {
 	expectClipboard(t, press(m, "3", "y"), skillURL)
 	expectClipboard(t, press(m, "4", "j", "y"), f.home.Team.MCP[1].URL)
 	// Mine: an external skill's URL, a stdio server's message.
-	expectClipboard(t, press(m, "1", "down", "down", "down", "down", "down", "down", "down", "y"), skillURL)
+	expectClipboard(t, press(m, "1", "down", "down", "down", "down", "down", "down", "down", "down", "y"), skillURL)
 	expectClipboard(t, press(m, "down", "down", "down", "y"), "command npx not found in PATH")
 
 	// A row with neither sends the toast; with no toast there is nothing.

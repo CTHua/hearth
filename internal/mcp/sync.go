@@ -26,6 +26,7 @@ type target struct {
 var targets = []target{
 	{rel: ClaudeFile, agent: config.AgentClaude, render: renderClaude},
 	{rel: CodexFile, agent: config.AgentCodex, render: func(servers []config.MCP) ([]byte, error) { return renderCodex(servers), nil }},
+	{rel: CopilotFile, agent: config.AgentCopilot, render: renderCopilot},
 }
 
 // Result is what a sync did: warnings that do not change the exit code,

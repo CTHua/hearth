@@ -30,6 +30,7 @@ type target struct {
 var targets = []target{
 	{agent: config.AgentClaude, dir: ClaudeDir, ext: ".md"},
 	{agent: config.AgentCodex, dir: CodexDir, ext: ".toml", parentGoes: true},
+	{agent: config.AgentCopilot, dir: CopilotDir, ext: ".md"},
 }
 
 func (tg target) rel(name string) string {
