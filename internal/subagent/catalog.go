@@ -27,6 +27,8 @@ const (
 	ClaudeDir = ".claude/agents"
 	// CodexDir is where Codex reads project agent roles.
 	CodexDir = ".codex/agents"
+	// CopilotDir is where GitHub Copilot reads project subagents.
+	CopilotDir = ".copilot/agents"
 
 	sourceExt      = ".md"
 	templatePrefix = "_"
@@ -34,19 +36,20 @@ const (
 	problemSep     = "; "
 )
 
-// Frontmatter keys. Only the four top-level keys are accepted; the claude
-// and codex mappings may not set what the generated files take from the top
-// level and the body.
+// Frontmatter keys. Only the four top-level keys are accepted; the claude,
+// codex and copilot mappings may not set what the generated files take from
+// the top level and the body.
 const (
 	keyName         = "name"
 	keyDescription  = "description"
 	keyClaude       = "claude"
 	keyCodex        = "codex"
+	keyCopilot      = "copilot"
 	keyInstructions = "developer_instructions"
 )
 
 var (
-	topKeys      = []string{keyName, keyDescription, keyClaude, keyCodex}
+	topKeys      = []string{keyName, keyDescription, keyClaude, keyCodex, keyCopilot}
 	reservedKeys = []string{keyName, keyDescription, keyInstructions}
 )
 
@@ -159,6 +162,7 @@ type definition struct {
 	description *yaml.Node
 	claude      *yaml.Node
 	codex       *yaml.Node
+	copilot     *yaml.Node
 	body        string
 }
 
@@ -173,7 +177,11 @@ func parse(item Item, data []byte) Item {
 		}
 		codex, codexProblems := renderCodex(def)
 		problems = append(problems, codexProblems...)
-		item.files = map[string][]byte{config.AgentClaude: claude, config.AgentCodex: codex}
+		copilot, err := renderCopilot(def)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("cannot write the Copilot file: %v", err))
+		}
+		item.files = map[string][]byte{config.AgentClaude: claude, config.AgentCodex: codex, config.AgentCopilot: copilot}
 	}
 	if len(problems) > 0 {
 		item.files = nil
@@ -203,7 +211,7 @@ func read(name string, data []byte) (definition, []string) {
 		return definition{}, problems
 	}
 	var problems []string
-	fields := map[string]**yaml.Node{keyName: &def.name, keyDescription: &def.description, keyClaude: &def.claude, keyCodex: &def.codex}
+	fields := map[string]**yaml.Node{keyName: &def.name, keyDescription: &def.description, keyClaude: &def.claude, keyCodex: &def.codex, keyCopilot: &def.copilot}
 	top := doc.Content[0]
 	for i := 0; i < len(top.Content); i += 2 {
 		key := top.Content[i]
@@ -228,7 +236,7 @@ func read(name string, data []byte) (definition, []string) {
 	for _, section := range []struct {
 		key  string
 		node *yaml.Node
-	}{{keyClaude, def.claude}, {keyCodex, def.codex}} {
+	}{{keyClaude, def.claude}, {keyCodex, def.codex}, {keyCopilot, def.copilot}} {
 		problems = append(problems, sectionProblems(section.key, section.node)...)
 	}
 	return def, problems
