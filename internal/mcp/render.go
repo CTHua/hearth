@@ -20,6 +20,8 @@ const (
 	ClaudeFile = ".mcp.json"
 	// CodexFile is the project config Codex reads in a trusted project.
 	CodexFile = ".codex/config.toml"
+	// CopilotFile is the project MCP config GitHub Copilot reads.
+	CopilotFile = ".copilot/config.json"
 )
 
 const (
@@ -161,4 +163,21 @@ func renderCodex(servers []config.MCP) []byte {
 		}
 	}
 	return []byte(b.String())
+}
+
+// renderCopilot returns .copilot/config.json for servers, in their order.
+// GitHub Copilot uses the same JSON format as Claude Code.
+func renderCopilot(servers []config.MCP) ([]byte, error) {
+	entries := object{}
+	for _, server := range servers {
+		entries = append(entries, field{server.Name, claudeServer(server)})
+	}
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", jsonIndent)
+	if err := enc.Encode(object{{keyServers, entries}}); err != nil {
+		return nil, fmt.Errorf("cannot encode %s: %w", CopilotFile, err)
+	}
+	return b.Bytes(), nil
 }
