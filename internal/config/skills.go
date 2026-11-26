@@ -22,15 +22,16 @@ const RootSubdir = "."
 
 // Agents a person may choose.
 const (
-	AgentClaude = "claude"
-	AgentCodex  = "codex"
+	AgentClaude  = "claude"
+	AgentCodex   = "codex"
+	AgentCopilot = "copilot"
 )
 
 var (
 	// skillFields are the string fields every [[skills]] entry sets; it sets
 	// exactly one of subdir and subdirs as well.
 	skillFields = []string{FieldName, FieldURL, FieldCommit}
-	knownAgents = []string{AgentClaude, AgentCodex}
+	knownAgents = []string{AgentClaude, AgentCodex, AgentCopilot}
 	// Full SHA-1 or SHA-256 object names; branches and tags would move.
 	commitRE = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 	// The same characters as a URL path segment in internal/giturl.
