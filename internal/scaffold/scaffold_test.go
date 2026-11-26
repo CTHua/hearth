@@ -37,7 +37,7 @@ var pythonConfigRE = regexp.MustCompile(`(?:^|[^/])config\.toml`)
 
 // init never writes agent auto-load settings or the directories that only
 // `sync` creates; since P6 that includes the generated subagent files.
-var forbiddenPaths = []string{".mcp.json", ".codex/config.toml", ".claude/skills", ".agents/skills", "vendor/skills", "vendor", brand.StateDir, ".claude/agents", ".codex"}
+var forbiddenPaths = []string{".mcp.json", ".codex/config.toml", ".copilot/config.json", ".claude/skills", ".agents/skills", ".copilot/skills", "vendor/skills", "vendor", brand.StateDir, ".claude/agents", ".codex/agents", ".copilot/agents", ".codex"}
 
 var (
 	machinePathRE = regexp.MustCompile(`(?:/Users|/home)/[A-Za-z0-9]|[A-Za-z]:\\Users\\`)
@@ -360,12 +360,12 @@ func TestPythonConfigCheckAllowsOnlyCodexPath(t *testing.T) {
 func TestGitignoreBlockIgnoresMCPOutputs(t *testing.T) {
 	dir := initHome(t)
 	block := markerBlock(t, ".gitignore", readFile(t, filepath.Join(dir, ".gitignore")), brand.GitignoreBegin, brand.GitignoreEnd)
-	for _, want := range []string{"/.mcp.json", "/.codex/"} {
+	for _, want := range []string{"/.mcp.json", "/.codex/", "/.copilot/"} {
 		if !strings.Contains(strings.Join(block, "\n")+"\n", want+"\n") {
 			t.Errorf("block lacks %q", want)
 		}
 	}
-	paths := []string{".mcp.json", ".codex/config.toml", brand.StateFile}
+	paths := []string{".mcp.json", ".codex/config.toml", ".copilot/config.json", brand.StateFile}
 	for _, path := range paths {
 		full := filepath.Join(dir, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
@@ -395,7 +395,7 @@ func TestTemplateSubagentIsValidAndOutputsAreIgnored(t *testing.T) {
 	if !strings.Contains(strings.Join(block, "\n")+"\n", "/.claude/agents/\n") {
 		t.Errorf("block lacks /.claude/agents/:\n%s", strings.Join(block, "\n"))
 	}
-	paths := []string{subagent.ClaudeDir + "/subagent.md", subagent.CodexDir + "/subagent.toml"}
+	paths := []string{subagent.ClaudeDir + "/subagent.md", subagent.CodexDir + "/subagent.toml", subagent.CopilotDir + "/subagent.md"}
 	for _, path := range paths {
 		full := filepath.Join(dir, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {

@@ -10,10 +10,12 @@
 /.hearth/
 /.claude/skills/
 /.agents/skills/
+/.copilot/skills/
 # Written by `hearth sync` from the chosen MCP servers; .hearth/ above holds
 # their hashes.
 /.mcp.json
 /.codex/
+/.copilot/
 # Written by `hearth sync` from subagents/ for the chosen subagents; the
 # Codex ones go to .codex/agents/, already ignored above.
 /.claude/agents/
